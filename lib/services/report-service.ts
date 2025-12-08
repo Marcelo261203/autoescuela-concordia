@@ -36,7 +36,7 @@ export async function getClassesReport(filters?: { dateFrom?: string; dateTo?: s
 
   let query = supabase.from("classes").select(
     `*,
-    estudiante:students(id, nombre, apellido, ci),
+    estudiante:students(id, nombre, apellido, ci, categoria_licencia_deseada),
     instructor:instructors(id, nombre, apellido, especialidad)`,
   )
 

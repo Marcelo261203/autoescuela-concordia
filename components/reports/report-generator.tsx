@@ -22,10 +22,17 @@ const tipoColors: Record<string, string> = {
   teorica: "bg-purple-100 text-purple-800",
 }
 
+const estadoColors: Record<string, string> = {
+  agendado: "bg-yellow-100 text-yellow-800",
+  por_calificar: "bg-orange-100 text-orange-800",
+  cursado: "bg-green-100 text-green-800",
+}
+
 export function ReportGenerator() {
   const [reportType, setReportType] = useState<"students" | "classes">("students")
   const [status, setStatus] = useState<string>("all")
   const [classTipo, setClassTipo] = useState<string>("all")
+  const [classEstado, setClassEstado] = useState<string>("all")
   const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv")
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<ClassWithDetails[]>([])
@@ -88,13 +95,20 @@ export function ReportGenerator() {
     total: classes.length,
     practica: classes.filter((c) => c.tipo === "practica").length,
     teorica: classes.filter((c) => c.tipo === "teorica").length,
+    agendado: classes.filter((c) => c.estado === "agendado").length,
+    por_calificar: classes.filter((c) => c.estado === "por_calificar").length,
+    cursado: classes.filter((c) => c.estado === "cursado").length,
+    calificadas: classes.filter((c) => c.nota !== null && c.nota !== undefined).length,
   }
 
   const filteredStudents =
     status === "all" ? students : students.filter((s) => s.estado === status)
 
-  const filteredClasses =
-    classTipo === "all" ? classes : classes.filter((c) => c.tipo === classTipo)
+  const filteredClasses = classes.filter((c) => {
+    const tipoMatch = classTipo === "all" || c.tipo === classTipo
+    const estadoMatch = classEstado === "all" || c.estado === classEstado
+    return tipoMatch && estadoMatch
+  })
 
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
@@ -170,10 +184,13 @@ export function ReportGenerator() {
         "Hora",
         "Estudiante",
         "CI Estudiante",
+        "Categoría Licencia Estudiante",
         "Instructor",
         "Tipo",
         "Categoría",
         "Duración (min)",
+        "Estado",
+        "Nota",
         "Observaciones",
       ]
       const rows = filteredClasses.map((c) => [
@@ -181,28 +198,38 @@ export function ReportGenerator() {
         c.hora,
         c.estudiante ? `${c.estudiante.nombre} ${c.estudiante.apellido}` : "N/A",
         c.estudiante?.ci || "N/A",
+        c.estudiante?.categoria_licencia_deseada || "N/A",
         c.instructor ? `${c.instructor.nombre} ${c.instructor.apellido}` : "N/A",
         c.tipo === "practica" ? "Práctica" : "Teórica",
         c.categoria_licencia || "N/A",
         c.duracion_minutos,
+        c.estado === "agendado" ? "Agendado" : c.estado === "por_calificar" ? "Por Calificar" : c.estado === "cursado" ? "Cursado" : "N/A",
+        c.nota !== null && c.nota !== undefined ? c.nota.toString() : "Sin calificar",
         c.observaciones || "",
       ])
       content = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n")
-      filename = `reporte-clases-${classTipo !== "all" ? classTipo + "-" : ""}${new Date().toISOString().split("T")[0]}.csv`
+      const tipoFilter = classTipo !== "all" ? `${classTipo}-` : ""
+      const estadoFilter = classEstado !== "all" ? `${classEstado}-` : ""
+      filename = `reporte-clases-${tipoFilter}${estadoFilter}${new Date().toISOString().split("T")[0]}.csv`
     } else {
       const exportData = filteredClasses.map((c) => ({
         fecha: c.fecha,
         hora: c.hora,
         estudiante: c.estudiante ? `${c.estudiante.nombre} ${c.estudiante.apellido}` : null,
         ci_estudiante: c.estudiante?.ci || null,
+        categoria_licencia_estudiante: c.estudiante?.categoria_licencia_deseada || null,
         instructor: c.instructor ? `${c.instructor.nombre} ${c.instructor.apellido}` : null,
         tipo: c.tipo,
         categoria_licencia: c.categoria_licencia,
         duracion_minutos: c.duracion_minutos,
-        observaciones: c.observaciones,
+        estado: c.estado || null,
+        nota: c.nota !== null && c.nota !== undefined ? c.nota : null,
+        observaciones: c.observaciones || null,
       }))
       content = JSON.stringify(exportData, null, 2)
-      filename = `reporte-clases-${classTipo !== "all" ? classTipo + "-" : ""}${new Date().toISOString().split("T")[0]}.json`
+      const tipoFilter = classTipo !== "all" ? `${classTipo}-` : ""
+      const estadoFilter = classEstado !== "all" ? `${classEstado}-` : ""
+      filename = `reporte-clases-${tipoFilter}${estadoFilter}${new Date().toISOString().split("T")[0]}.json`
     }
 
     const blob = new Blob([content], { type: exportFormat === "csv" ? "text/csv" : "application/json" })
@@ -431,6 +458,20 @@ export function ReportGenerator() {
                   </Select>
                 </div>
                 <div className="space-y-2 flex-1">
+                  <label className="text-sm font-medium">Filtrar por estado</label>
+                  <Select value={classEstado} onValueChange={setClassEstado}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los estados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los estados</SelectItem>
+                      <SelectItem value="agendado">Agendadas</SelectItem>
+                      <SelectItem value="por_calificar">Por Calificar</SelectItem>
+                      <SelectItem value="cursado">Cursadas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 flex-1">
                   <label className="text-sm font-medium">Formato de exportación</label>
                   <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "csv" | "json")}>
                     <SelectTrigger>
@@ -462,13 +503,13 @@ export function ReportGenerator() {
                 Resumen del Reporte
               </CardTitle>
               <CardDescription>
-                {classTipo !== "all"
-                  ? `Clases de tipo: ${classTipo === "practica" ? "Prácticas" : "Teóricas"}`
+                {classTipo !== "all" || classEstado !== "all"
+                  ? `Clases filtradas${classTipo !== "all" ? ` - Tipo: ${classTipo === "practica" ? "Prácticas" : "Teóricas"}` : ""}${classEstado !== "all" ? ` - Estado: ${classEstado === "agendado" ? "Agendadas" : classEstado === "por_calificar" ? "Por Calificar" : "Cursadas"}` : ""}`
                   : "Resumen general de todas las clases"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
                   <p className="text-xs text-muted-foreground font-medium">Total</p>
                   <p className="text-3xl font-bold text-blue-600">{classesSummary.total}</p>
@@ -480,6 +521,18 @@ export function ReportGenerator() {
                 <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">
                   <p className="text-xs text-muted-foreground font-medium">Teóricas</p>
                   <p className="text-3xl font-bold text-purple-600">{classesSummary.teorica}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+                  <p className="text-xs text-muted-foreground font-medium">Agendadas</p>
+                  <p className="text-3xl font-bold text-yellow-600">{classesSummary.agendado}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-orange-50 border border-orange-200">
+                  <p className="text-xs text-muted-foreground font-medium">Por Calificar</p>
+                  <p className="text-3xl font-bold text-orange-600">{classesSummary.por_calificar}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                  <p className="text-xs text-muted-foreground font-medium">Calificadas</p>
+                  <p className="text-3xl font-bold text-green-600">{classesSummary.calificadas}</p>
                 </div>
               </div>
             </CardContent>
@@ -508,12 +561,14 @@ export function ReportGenerator() {
                       <TableHead>Tipo</TableHead>
                       <TableHead>Categoría</TableHead>
                       <TableHead>Duración</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Nota</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredClasses.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           No se encontraron clases con los criterios seleccionados
                         </TableCell>
                       </TableRow>
@@ -547,6 +602,28 @@ export function ReportGenerator() {
                             )}
                           </TableCell>
                           <TableCell className="text-sm">{classItem.duracion_minutos} min</TableCell>
+                          <TableCell>
+                            {classItem.estado ? (
+                              <Badge className={estadoColors[classItem.estado] || "bg-gray-100 text-gray-800"}>
+                                {classItem.estado === "agendado"
+                                  ? "AGENDADO"
+                                  : classItem.estado === "por_calificar"
+                                    ? "POR CALIFICAR"
+                                    : "CURSADO"}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium">
+                            {classItem.nota !== null && classItem.nota !== undefined ? (
+                              <span className={classItem.nota >= 51 ? "text-green-600" : "text-red-600"}>
+                                {classItem.nota}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Sin calificar</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
