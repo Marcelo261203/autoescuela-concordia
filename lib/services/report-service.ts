@@ -78,7 +78,7 @@ export async function getDashboardSummary() {
     .from("classes")
     .select("*", { count: "exact", head: true })
 
-  // Calcular tendencia de últimos 6 meses
+  // Calcular tendencia de últimos 6 meses (para estudiantes)
   const trendData: Array<{ mes: string; estudiantes: number }> = []
   const nombresMeses = [
     "Enero",
@@ -119,6 +119,111 @@ export async function getDashboardSummary() {
     })
   }
 
+  // Obtener estadísticas de clases
+  const { data: allClasses, error: classesError } = await supabase
+    .from("classes")
+    .select("estado, nota, fecha")
+
+  if (classesError) throw new Error(classesError.message)
+
+  // Calcular tendencia de clases por mes (últimos 5 meses)
+  const classesTrendData: Array<{ mes: string; clases: number }> = []
+  for (let i = 4; i >= 0; i--) {
+    const fecha = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1)
+    const mesIndex = fecha.getMonth()
+    const nombreMes = nombresMeses[mesIndex]
+    const fechaInicioMes = fecha.toISOString().split("T")[0]
+    const fechaFinMes = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).toISOString().split("T")[0]
+
+    // Contar clases realizadas en ese mes (basado en la fecha de la clase)
+    const clasesMes = allClasses?.filter((c) => {
+      if (!c.fecha) return false
+      const fechaClase = new Date(c.fecha).toISOString().split("T")[0]
+      return fechaClase >= fechaInicioMes && fechaClase <= fechaFinMes
+    }).length || 0
+
+    classesTrendData.push({
+      mes: nombreMes,
+      clases: clasesMes,
+    })
+  }
+
+  const clasesCompletadas = allClasses?.filter((c) => c.estado === "cursado").length || 0
+  const clasesAgendadas = allClasses?.filter((c) => c.estado === "agendado").length || 0
+  const clasesPorCalificar = allClasses?.filter((c) => c.estado === "por_calificar").length || 0
+
+  // Calcular estadísticas de notas
+  const clasesConNota = allClasses?.filter((c) => c.nota !== null && c.nota !== undefined) || []
+  const promedioNotas = clasesConNota.length > 0
+    ? clasesConNota.reduce((sum, c) => sum + (c.nota || 0), 0) / clasesConNota.length
+    : 0
+
+  // Distribución de notas
+  const distribucionNotas = {
+    excelente: clasesConNota.filter((c) => (c.nota || 0) >= 90).length,
+    bueno: clasesConNota.filter((c) => (c.nota || 0) >= 75 && (c.nota || 0) < 90).length,
+    regular: clasesConNota.filter((c) => (c.nota || 0) >= 60 && (c.nota || 0) < 75).length,
+    bajo: clasesConNota.filter((c) => (c.nota || 0) < 60).length,
+  }
+
+  // Tendencia de notas promedio por mes (últimos 6 meses)
+  const notasTrendData: Array<{ mes: string; promedio: number }> = []
+  for (let i = 5; i >= 0; i--) {
+    const fecha = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1)
+    const mesIndex = fecha.getMonth()
+    const nombreMes = nombresMeses[mesIndex]
+    const fechaInicioMes = fecha.toISOString().split("T")[0]
+    const fechaFinMes = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).toISOString().split("T")[0]
+
+    const clasesDelMes = allClasses?.filter((c) => {
+      if (!c.fecha) return false
+      const fechaClase = new Date(c.fecha).toISOString().split("T")[0]
+      return fechaClase >= fechaInicioMes && fechaClase <= fechaFinMes && c.nota !== null && c.nota !== undefined
+    }) || []
+
+    const promedioMes = clasesDelMes.length > 0
+      ? clasesDelMes.reduce((sum, c) => sum + (c.nota || 0), 0) / clasesDelMes.length
+      : 0
+
+    notasTrendData.push({
+      mes: nombreMes,
+      promedio: Math.round(promedioMes * 10) / 10,
+    })
+  }
+
+  // Obtener estadísticas de progreso
+  const { data: allProgress, error: progressError } = await supabase
+    .from("student_progress")
+    .select("porcentaje_avance, nota_final, aprobado")
+
+  if (progressError && progressError.code !== "PGRST116") throw new Error(progressError.message)
+
+  const progresoPromedio = allProgress && allProgress.length > 0
+    ? allProgress.reduce((sum, p) => sum + (p.porcentaje_avance || 0), 0) / allProgress.length
+    : 0
+
+  const estudiantesAprobados = allProgress?.filter((p) => p.aprobado === true).length || 0
+  const estudiantesReprobados = allProgress?.filter((p) => p.aprobado === false).length || 0
+  const estudiantesPendientes = allProgress?.filter((p) => p.aprobado === null).length || 0
+
+  // Promedio de nota final de exámenes
+  const examenesConNota = allProgress?.filter((p) => p.nota_final !== null && p.nota_final !== undefined) || []
+  const promedioNotaFinal = examenesConNota.length > 0
+    ? examenesConNota.reduce((sum, p) => sum + (p.nota_final || 0), 0) / examenesConNota.length
+    : 0
+
+  // Top estudiantes por progreso (últimos 5)
+  const { data: topStudents, error: topStudentsError } = await supabase
+    .from("student_progress")
+    .select(`
+      porcentaje_avance,
+      estudiante:students(id, nombre, apellido, ci)
+    `)
+    .order("porcentaje_avance", { ascending: false })
+    .limit(5)
+
+  if (topStudentsError && topStudentsError.code !== "PGRST116") throw new Error(topStudentsError.message)
+
   return {
     total,
     activo,
@@ -127,5 +232,25 @@ export async function getDashboardSummary() {
     inactivo,
     totalClases: totalClases || 0,
     trendData,
+    classesTrendData, // Tendencia de clases por mes (últimos 5 meses)
+    // Nuevas estadísticas de clases
+    clasesCompletadas,
+    clasesAgendadas,
+    clasesPorCalificar,
+    // Estadísticas de notas
+    promedioNotas: Math.round(promedioNotas * 10) / 10,
+    distribucionNotas,
+    notasTrendData,
+    // Estadísticas de progreso
+    progresoPromedio: Math.round(progresoPromedio * 10) / 10,
+    estudiantesAprobados,
+    estudiantesReprobados,
+    estudiantesPendientes,
+    promedioNotaFinal: Math.round(promedioNotaFinal * 10) / 10,
+    topStudents: topStudents?.map((s) => ({
+      nombre: `${s.estudiante?.nombre || ""} ${s.estudiante?.apellido || ""}`.trim() || "N/A",
+      ci: s.estudiante?.ci || "N/A",
+      progreso: Math.round((s.porcentaje_avance || 0) * 10) / 10,
+    })) || [],
   }
 }

@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, LogIn } from "lucide-react"
+import { AlertCircle } from "lucide-react"
+import Image from "next/image"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -52,14 +53,21 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-2">
-          <div className="flex items-center justify-center mb-2">
-            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-              <LogIn className="text-white" />
+        <CardHeader className="space-y-2 pb-6">
+          <div className="flex flex-col items-center justify-center">
+            <div className="bg-white rounded-lg p-6 shadow-md mb-4">
+              <Image
+                src="/logo-autoescuela.png"
+                alt="Logo Autoescuela Concordia"
+                width={400}
+                height={180}
+                className="object-contain"
+                priority
+                style={{ width: "auto", height: "auto", maxWidth: "400px", maxHeight: "180px" }}
+              />
             </div>
+            <CardTitle className="text-2xl font-semibold">Inicio de Sesión</CardTitle>
           </div>
-          <CardTitle className="text-2xl text-center">Autoescuela</CardTitle>
-          <CardDescription className="text-center">Sistema de Gestión de Estudiantes</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
