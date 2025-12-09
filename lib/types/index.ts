@@ -26,6 +26,8 @@ export interface Instructor {
   disponibilidad?: string | null // Campo legacy, mantener por compatibilidad
   hora_inicio?: string | null // Hora de inicio del horario disponible (formato HH:MM)
   hora_fin?: string | null // Hora de fin del horario disponible (formato HH:MM)
+  tipos_licencias?: string | null // Categorías de licencias que puede enseñar (formato: "P,A,B,C")
+  auth_user_id?: string | null // Referencia al usuario en auth.users de Supabase
   estado: "activo" | "inactivo"
   created_at: string
   updated_at: string

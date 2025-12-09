@@ -254,3 +254,103 @@ export async function getDashboardSummary() {
     })) || [],
   }
 }
+
+/**
+ * Obtiene el resumen del dashboard para un instructor específico
+ * Solo muestra las clases asignadas a ese instructor
+ */
+export async function getInstructorDashboardSummary(instructorId: string) {
+  const supabase = await createClient()
+
+  // Obtener todas las clases del instructor
+  const { data: allClasses, error: classesError } = await supabase
+    .from("classes")
+    .select("id, estado, nota, fecha, tipo, estudiante_id, estudiante:students(id, nombre, apellido, ci)")
+    .eq("instructor_id", instructorId)
+
+  if (classesError) throw new Error(classesError.message)
+
+  // Estadísticas básicas
+  const totalClases = allClasses?.length || 0
+  const clasesCompletadas = allClasses?.filter((c) => c.estado === "cursado").length || 0
+  const clasesAgendadas = allClasses?.filter((c) => c.estado === "agendado").length || 0
+  const clasesPorCalificar = allClasses?.filter((c) => c.estado === "por_calificar").length || 0
+
+  // Calcular promedio de notas
+  const clasesConNota = allClasses?.filter((c) => c.nota !== null && c.nota !== undefined) || []
+  const promedioNotas = clasesConNota.length > 0
+    ? clasesConNota.reduce((sum, c) => sum + (c.nota || 0), 0) / clasesConNota.length
+    : 0
+
+  // Distribución de notas
+  const distribucionNotas = {
+    excelente: clasesConNota.filter((c) => (c.nota || 0) >= 90).length,
+    bueno: clasesConNota.filter((c) => (c.nota || 0) >= 75 && (c.nota || 0) < 90).length,
+    regular: clasesConNota.filter((c) => (c.nota || 0) >= 60 && (c.nota || 0) < 75).length,
+    bajo: clasesConNota.filter((c) => (c.nota || 0) < 60).length,
+  }
+
+  // Tendencia de clases por mes (últimos 5 meses)
+  const nombresMeses = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  ]
+  const ahora = new Date()
+  const classesTrendData: Array<{ mes: string; clases: number }> = []
+
+  for (let i = 4; i >= 0; i--) {
+    const fecha = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1)
+    const mesIndex = fecha.getMonth()
+    const nombreMes = nombresMeses[mesIndex]
+    const fechaInicioMes = fecha.toISOString().split("T")[0]
+    const fechaFinMes = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).toISOString().split("T")[0]
+
+    const clasesMes = allClasses?.filter((c) => {
+      if (!c.fecha) return false
+      const fechaClase = new Date(c.fecha).toISOString().split("T")[0]
+      return fechaClase >= fechaInicioMes && fechaClase <= fechaFinMes
+    }).length || 0
+
+    classesTrendData.push({
+      mes: nombreMes,
+      clases: clasesMes,
+    })
+  }
+
+  // Clases por tipo
+  const clasesPracticas = allClasses?.filter((c) => c.tipo === "practica").length || 0
+  const clasesTeoricas = allClasses?.filter((c) => c.tipo === "teorica").length || 0
+
+  // Estudiantes únicos que tiene asignados
+  const estudiantesUnicos = new Set(allClasses?.map((c) => c.estudiante_id).filter(Boolean) || [])
+  const totalEstudiantes = estudiantesUnicos.size
+
+  // Próximas clases (próximas 5 clases agendadas)
+  const hoy = new Date().toISOString().split("T")[0]
+  const proximasClases = allClasses
+    ?.filter((c) => c.estado === "agendado" && c.fecha >= hoy)
+    .sort((a, b) => {
+      if (!a.fecha || !b.fecha) return 0
+      return a.fecha.localeCompare(b.fecha)
+    })
+    .slice(0, 5) || []
+
+  return {
+    totalClases,
+    clasesCompletadas,
+    clasesAgendadas,
+    clasesPorCalificar,
+    promedioNotas: Math.round(promedioNotas * 10) / 10,
+    distribucionNotas,
+    classesTrendData,
+    clasesPracticas,
+    clasesTeoricas,
+    totalEstudiantes,
+    proximasClases: proximasClases.map((c) => ({
+      id: c.id,
+      fecha: c.fecha,
+      tipo: c.tipo,
+      estudiante: c.estudiante,
+    })),
+  }
+}

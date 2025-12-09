@@ -24,8 +24,17 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Edit, Trash2, Search, Plus } from "lucide-react"
+import { Edit, Trash2, Search, Plus, UserPlus } from "lucide-react"
 import type { Instructor } from "@/lib/types"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 const statusColors: Record<string, string> = {
   activo: "bg-green-100 text-green-800",
@@ -40,7 +49,11 @@ export function InstructorList() {
   const [search, setSearch] = useState("")
   const [estado, setEstado] = useState<string>("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [activateDialogOpen, setActivateDialogOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>("")
+  const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null)
+  const [activationPassword, setActivationPassword] = useState("")
+  const [isActivating, setIsActivating] = useState(false)
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -93,6 +106,50 @@ export function InstructorList() {
     } catch (error) {
       console.error("Error deleting instructor:", error)
       alert("Error al eliminar el instructor")
+    }
+  }
+
+  const handleActivate = async () => {
+    if (!selectedInstructor || !activationPassword) {
+      alert("Por favor ingresa una contraseña")
+      return
+    }
+
+    if (activationPassword.length < 6) {
+      alert("La contraseña debe tener al menos 6 caracteres")
+      return
+    }
+
+    try {
+      setIsActivating(true)
+      const response = await fetch(`/api/instructors/${selectedInstructor.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          password: activationPassword,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(errorData.error || "Error al activar el instructor")
+        setIsActivating(false)
+        return
+      }
+
+      setActivateDialogOpen(false)
+      setActivationPassword("")
+      setSelectedInstructor(null)
+      fetchInstructors()
+      router.refresh()
+      alert("Instructor activado exitosamente. Ahora puede iniciar sesión.")
+    } catch (error) {
+      console.error("Error activating instructor:", error)
+      alert("Error al activar el instructor")
+    } finally {
+      setIsActivating(false)
     }
   }
 
@@ -192,6 +249,20 @@ export function InstructorList() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      {!instructor.auth_user_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedInstructor(instructor)
+                            setActivateDialogOpen(true)
+                          }}
+                          className="transition-all hover:bg-green-50 text-green-700 border-green-200"
+                          title="Activar usuario"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Link href={`/dashboard/instructors/${instructor.id}`}>
                         <Button size="sm" variant="outline" className="transition-all hover:bg-blue-50 bg-transparent">
                           <Edit className="h-4 w-4" />
@@ -259,6 +330,52 @@ export function InstructorList() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Diálogo de activación de instructor */}
+      <Dialog open={activateDialogOpen} onOpenChange={setActivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Activar Usuario del Instructor</DialogTitle>
+            <DialogDescription>
+              Crear cuenta de usuario para{" "}
+              {selectedInstructor ? `${selectedInstructor.nombre} ${selectedInstructor.apellido}` : "el instructor"}.
+              Esta contraseña permitirá al instructor iniciar sesión en el sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="activation-password">Contraseña *</Label>
+              <Input
+                id="activation-password"
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={activationPassword}
+                onChange={(e) => setActivationPassword(e.target.value)}
+                disabled={isActivating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Esta contraseña se usará para crear la cuenta de usuario del instructor.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setActivateDialogOpen(false)
+                setActivationPassword("")
+                setSelectedInstructor(null)
+              }}
+              disabled={isActivating}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleActivate} disabled={isActivating || !activationPassword}>
+              {isActivating ? "Activando..." : "Activar Usuario"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

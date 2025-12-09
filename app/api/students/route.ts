@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const newStudent = await createStudent({
       ...student,
       fecha_inscripcion: new Date().toISOString(),
-      estado: student.estado || "activo", // Por defecto "activo" si no se especifica
+      estado: "activo", // SIEMPRE forzar estado "activo" al crear
     })
 
     return NextResponse.json(newStudent, { status: 201 })

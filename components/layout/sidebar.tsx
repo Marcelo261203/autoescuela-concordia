@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Users, FileText, LogOut, Menu, GraduationCap, Calendar, TrendingUp, ClipboardList } from "lucide-react"
+import { BarChart3, Users, FileText, LogOut, Menu, GraduationCap, Calendar, TrendingUp, ClipboardList, Plus, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -14,10 +14,24 @@ export function Sidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [userRole, setUserRole] = useState<"admin" | "instructor" | null>(null)
 
   useEffect(() => {
     setMounted(true)
+    fetchUserRole()
   }, [])
+
+  const fetchUserRole = async () => {
+    try {
+      const response = await fetch("/api/auth/role", { credentials: "include" })
+      if (response.ok) {
+        const data = await response.json()
+        setUserRole(data.role)
+      }
+    } catch (error) {
+      console.error("Error obteniendo rol:", error)
+    }
+  }
 
   const handleLogout = async () => {
     try {
@@ -58,11 +72,17 @@ export function Sidebar() {
     }
   }
 
-  const menuItems = [
+  // Menú items según el rol
+  const adminMenuItems = [
     {
       label: "Dashboard",
       href: "/dashboard",
       icon: BarChart3,
+    },
+    {
+      label: "Matricular",
+      href: "/dashboard/enroll",
+      icon: UserPlus,
     },
     {
       label: "Estudiantes",
@@ -96,6 +116,37 @@ export function Sidebar() {
     },
   ]
 
+  const instructorMenuItems = [
+    {
+      label: "Mi Dashboard",
+      href: "/dashboard/instructor",
+      icon: BarChart3,
+    },
+    {
+      label: "Mis Estudiantes",
+      href: "/dashboard/instructor/students",
+      icon: Users,
+    },
+    {
+      label: "Progreso",
+      href: "/dashboard/instructor/progress",
+      icon: TrendingUp,
+    },
+    {
+      label: "Mis Clases",
+      href: "/dashboard/instructor/classes",
+      icon: Calendar,
+    },
+    {
+      label: "Agendar Clase",
+      href: "/dashboard/instructor/classes/create",
+      icon: Plus,
+    },
+  ]
+
+  // Seleccionar items según el rol
+  const menuItems = userRole === "instructor" ? instructorMenuItems : adminMenuItems
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white">
       <div className="flex-1 space-y-4 py-4 px-3">
@@ -113,12 +164,33 @@ export function Sidebar() {
               />
             </div>
           </div>
-          <p className="text-xs text-slate-400 text-center">Gestión de Estudiantes</p>
+          <p className="text-xs text-slate-400 text-center">
+            {userRole === "instructor" ? "Panel de Instructor" : "Gestión de Estudiantes"}
+          </p>
         </div>
         <nav className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href))
+            // Mejorar la lógica de detección de ruta activa
+            let isActive = false
+            if (pathname === item.href) {
+              // Ruta exacta
+              isActive = true
+            } else if (item.href !== "/dashboard" && pathname?.startsWith(item.href)) {
+              // Verificar que no haya otra ruta más específica que también coincida
+              // Esto evita que "/dashboard/instructor/classes" se active cuando estás en "/dashboard/instructor/classes/create"
+              const hasMoreSpecificMatch = menuItems.some((otherItem) => {
+                if (otherItem.href === item.href) return false
+                // Si otra ruta es más larga y también empieza con la ruta actual, es más específica
+                return (
+                  otherItem.href.startsWith(item.href) &&
+                  otherItem.href.length > item.href.length &&
+                  pathname?.startsWith(otherItem.href)
+                )
+              })
+              // Solo activar si no hay una ruta más específica que coincida
+              isActive = !hasMoreSpecificMatch
+            }
             return (
               <Link key={item.href} href={item.href}>
                 <Button

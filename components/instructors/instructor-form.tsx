@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
 import { AlertCircle, CheckCircle } from "lucide-react"
 import type { Instructor } from "@/lib/types"
 
@@ -20,6 +21,11 @@ interface InstructorFormProps {
 
 export function InstructorForm({ isEdit = false, instructor }: InstructorFormProps) {
   const router = useRouter()
+  // Parsear tipos_licencias del instructor existente
+  const tiposLicenciasInicial = instructor?.tipos_licencias
+    ? instructor.tipos_licencias.split(",").map((t) => t.trim())
+    : []
+
   const [formData, setFormData] = useState({
     nombre: instructor?.nombre || "",
     apellido: instructor?.apellido || "",
@@ -30,7 +36,12 @@ export function InstructorForm({ isEdit = false, instructor }: InstructorFormPro
     hora_inicio: instructor?.hora_inicio || "",
     hora_fin: instructor?.hora_fin || "",
     estado: instructor?.estado || "activo",
+    tipos_licencias: tiposLicenciasInicial as ("M" | "P" | "A" | "B" | "C")[],
+    password: "", // Solo para crear o activar instructor existente
   })
+
+  // Determinar si el instructor necesita contraseña
+  const needsPassword = !isEdit || !instructor?.auth_user_id
 
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -69,6 +80,21 @@ export function InstructorForm({ isEdit = false, instructor }: InstructorFormPro
       }
     }
 
+    // Validar contraseña: requerida al crear o si el instructor no tiene auth_user_id
+    if (needsPassword && !formData.password) {
+      newErrors.password = "La contraseña es requerida para crear la cuenta de usuario"
+    }
+
+    // Validar que la contraseña tenga al menos 6 caracteres
+    if (formData.password && formData.password.length < 6) {
+      newErrors.password = "La contraseña debe tener al menos 6 caracteres"
+    }
+
+    // Validar que se seleccione al menos un tipo de licencia
+    if (formData.tipos_licencias.length === 0) {
+      newErrors.tipos_licencias = "Debe seleccionar al menos un tipo de licencia"
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       setIsLoading(false)
@@ -94,6 +120,8 @@ export function InstructorForm({ isEdit = false, instructor }: InstructorFormPro
           hora_inicio: formData.hora_inicio || null,
           hora_fin: formData.hora_fin || null,
           estado: formData.estado,
+          tipos_licencias: formData.tipos_licencias.length > 0 ? formData.tipos_licencias.join(",") : null,
+          password: needsPassword && formData.password ? formData.password : undefined,
         }),
       })
 
@@ -272,6 +300,79 @@ export function InstructorForm({ isEdit = false, instructor }: InstructorFormPro
               Campo opcional para notas adicionales sobre la disponibilidad del instructor.
             </p>
           </div>
+
+          {/* Campo de Tipos de Licencias */}
+          <div className="space-y-3">
+            <Label>Tipos de Licencias que Puede Enseñar *</Label>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {(["M", "P", "A", "B", "C"] as const).map((tipo) => {
+                const labels: Record<typeof tipo, string> = {
+                  M: "Moto",
+                  P: "Particular",
+                  A: "Autobús",
+                  B: "Bus/Camión",
+                  C: "Profesional",
+                }
+                return (
+                  <div key={tipo} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`licencia-${tipo}`}
+                      checked={formData.tipos_licencias.includes(tipo)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setFormData({
+                            ...formData,
+                            tipos_licencias: [...formData.tipos_licencias, tipo],
+                          })
+                        } else {
+                          setFormData({
+                            ...formData,
+                            tipos_licencias: formData.tipos_licencias.filter((t) => t !== tipo),
+                          })
+                        }
+                      }}
+                      disabled={isLoading}
+                    />
+                    <Label
+                      htmlFor={`licencia-${tipo}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {labels[tipo]} ({tipo})
+                    </Label>
+                  </div>
+                )
+              })}
+            </div>
+            {errors.tipos_licencias && (
+              <p className="text-sm text-destructive">{errors.tipos_licencias}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Seleccione las categorías de licencias que este instructor puede enseñar.
+            </p>
+          </div>
+
+          {/* Campo de Contraseña */}
+          {needsPassword && (
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                Contraseña {isEdit && !instructor?.auth_user_id ? "(Para activar cuenta)" : "*"}
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                disabled={isLoading}
+              />
+              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+              <p className="text-xs text-muted-foreground">
+                {isEdit && !instructor?.auth_user_id
+                  ? "Esta contraseña se usará para crear la cuenta de usuario del instructor."
+                  : "Esta contraseña permitirá al instructor iniciar sesión en el sistema."}
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-4 pt-6">
             <Button type="submit" disabled={isLoading} className="transition-all">

@@ -123,11 +123,23 @@ export async function createClass(clase: Omit<Class, "id" | "created_at" | "upda
   const supabase = await createClient()
   
   // Asegurar que fecha se envíe como string YYYY-MM-DD sin conversión de zona horaria
+  // Si viene como Date object, convertirlo a string YYYY-MM-DD
+  let fechaString: string
+  if (typeof clase.fecha === 'string') {
+    fechaString = clase.fecha.split('T')[0] // Si viene con hora, solo tomar la fecha
+  } else if (clase.fecha instanceof Date) {
+    // Convertir Date a YYYY-MM-DD en hora local (no UTC)
+    const year = clase.fecha.getFullYear()
+    const month = String(clase.fecha.getMonth() + 1).padStart(2, '0')
+    const day = String(clase.fecha.getDate()).padStart(2, '0')
+    fechaString = `${year}-${month}-${day}`
+  } else {
+    fechaString = clase.fecha as string
+  }
+  
   const claseData = {
     ...clase,
-    fecha: typeof clase.fecha === 'string' 
-      ? clase.fecha.split('T')[0] // Si viene con hora, solo tomar la fecha
-      : clase.fecha,
+    fecha: fechaString,
     estado: clase.estado || "agendado", // Por defecto "agendado"
   }
   

@@ -19,9 +19,10 @@ import type { Instructor } from "@/lib/types"
 interface ClassFormProps {
   isEdit?: boolean
   classData?: Class
+  instructorMode?: boolean // Si es true, solo muestra estudiantes del instructor y asigna instructor_id automáticamente
 }
 
-export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
+export function ClassForm({ isEdit = false, classData, instructorMode = false }: ClassFormProps) {
   const router = useRouter()
   const [formData, setFormData] = useState({
     estudiante_id: classData?.estudiante_id || "",
@@ -38,6 +39,7 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
 
   const [students, setStudents] = useState<Student[]>([])
   const [instructors, setInstructors] = useState<Instructor[]>([])
+  const [currentInstructorId, setCurrentInstructorId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [success, setSuccess] = useState(false)
@@ -46,8 +48,57 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
   const [isGraded, setIsGraded] = useState(false)
 
   useEffect(() => {
-    fetchStudentsAndInstructors()
-  }, [])
+    const fetchInitialData = async () => {
+      if (instructorMode) {
+        await fetchInstructorId()
+      } else {
+        fetchStudentsAndInstructors()
+      }
+    }
+    fetchInitialData()
+  }, [instructorMode])
+
+  useEffect(() => {
+    if (instructorMode && currentInstructorId) {
+      // Asignar automáticamente el instructor_id si no está en modo edición o si no hay instructor_id en classData
+      if (!isEdit || !classData?.instructor_id) {
+        setFormData((prev) => ({ ...prev, instructor_id: currentInstructorId }))
+      }
+      fetchInstructorStudents()
+    }
+  }, [instructorMode, currentInstructorId, isEdit, classData])
+
+  const fetchInstructorId = async () => {
+    try {
+      const response = await fetch("/api/auth/role", { credentials: "include" })
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentInstructorId(data.instructorId)
+      }
+    } catch (error) {
+      console.error("Error obteniendo ID de instructor:", error)
+    }
+  }
+
+  const fetchInstructorStudents = async () => {
+    if (!currentInstructorId) return
+    try {
+      // Filtrar estudiantes graduados automáticamente
+      const response = await fetch("/api/instructor/students", { credentials: "include" })
+      if (response.ok) {
+        const data = await response.json()
+        // Filtro adicional en el frontend para asegurar que no se muestren graduados
+        const activeStudents = (data.data || []).filter(
+          (student: Student) => student.estado !== "graduado"
+        )
+        setStudents(activeStudents)
+        setIsLoadingData(false)
+      }
+    } catch (error) {
+      console.error("Error fetching instructor students:", error)
+      setIsLoadingData(false)
+    }
+  }
 
   useEffect(() => {
     // Verificar si la clase puede ser calificada
@@ -104,6 +155,16 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
         const studentRes = await fetch(`/api/students/${studentId}`)
         if (studentRes.ok) {
           const studentData = await studentRes.json()
+          
+          // Validar que el estudiante no esté graduado (validación de seguridad)
+          if (studentData?.estado === "graduado") {
+            setErrors({ 
+              general: `No se pueden agendar clases para estudiantes graduados. El estudiante ${studentData.nombre} ${studentData.apellido} ya está graduado.` 
+            })
+            setFormData((prev) => ({ ...prev, estudiante_id: "" }))
+            return
+          }
+          
           if (studentData?.categoria_licencia_deseada) {
             setFormData((prev) => ({
               ...prev,
@@ -140,7 +201,10 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
     // Validación
     const newErrors: Record<string, string> = {}
     if (!formData.estudiante_id) newErrors.estudiante_id = "El estudiante es requerido"
-    if (!formData.instructor_id) newErrors.instructor_id = "El instructor es requerido"
+    if (!instructorMode && !formData.instructor_id) newErrors.instructor_id = "El instructor es requerido"
+    if (instructorMode && !currentInstructorId) {
+      newErrors.general = "No se pudo obtener tu información de instructor"
+    }
     if (!formData.fecha) newErrors.fecha = "La fecha es requerida"
     if (!formData.hora) newErrors.hora = "La hora es requerida"
     if (!formData.duracion_minutos || formData.duracion_minutos < 1) {
@@ -175,7 +239,7 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
           fecha: formData.fecha,
           hora: formData.hora,
           estudiante_id: formData.estudiante_id,
-          instructor_id: formData.instructor_id,
+          instructor_id: instructorMode ? currentInstructorId : formData.instructor_id,
           tipo: formData.tipo,
           duracion_minutos: formData.duracion_minutos,
           excludeId: isEdit && classData?.id ? classData.id : undefined,
@@ -206,10 +270,11 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
         },
         body: JSON.stringify({
           estudiante_id: formData.estudiante_id,
-          instructor_id: formData.instructor_id,
+          instructor_id: instructorMode ? currentInstructorId : formData.instructor_id,
           tipo: formData.tipo,
           categoria_licencia: formData.categoria_licencia || null,
-          fecha: formData.fecha,
+          // Asegurar que la fecha se envíe como YYYY-MM-DD sin conversión de zona horaria
+          fecha: formData.fecha ? formData.fecha.split('T')[0] : formData.fecha,
           hora: formData.hora,
           duracion_minutos: formData.duracion_minutos,
           observaciones: formData.observaciones,
@@ -227,7 +292,8 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push("/dashboard/classes")
+        const redirectPath = instructorMode ? "/dashboard/instructor/classes" : "/dashboard/classes"
+        router.push(redirectPath)
         router.refresh()
       }, 1500)
     } catch (error) {
@@ -302,28 +368,41 @@ export function ClassForm({ isEdit = false, classData }: ClassFormProps) {
               {errors.estudiante_id && <p className="text-sm text-destructive">{errors.estudiante_id}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="instructor_id">Instructor *</Label>
-              <Select
-                value={formData.instructor_id}
-                onValueChange={(value) => setFormData({ ...formData, instructor_id: value })}
-                disabled={isLoading}
-              >
-                <SelectTrigger id="instructor_id">
-                  <SelectValue placeholder="Selecciona un instructor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {instructors
-                    .filter((instructor) => instructor.estado === "activo")
-                    .map((instructor) => (
-                      <SelectItem key={instructor.id} value={instructor.id}>
-                        {instructor.nombre} {instructor.apellido} - {instructor.especialidad}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {errors.instructor_id && <p className="text-sm text-destructive">{errors.instructor_id}</p>}
-            </div>
+            {!instructorMode && (
+              <div className="space-y-2">
+                <Label htmlFor="instructor_id">Instructor *</Label>
+                <Select
+                  value={formData.instructor_id}
+                  onValueChange={(value) => setFormData({ ...formData, instructor_id: value })}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger id="instructor_id">
+                    <SelectValue placeholder="Selecciona un instructor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instructors
+                      .filter((instructor) => instructor.estado === "activo")
+                      .map((instructor) => (
+                        <SelectItem key={instructor.id} value={instructor.id}>
+                          {instructor.nombre} {instructor.apellido} - {instructor.especialidad}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {errors.instructor_id && <p className="text-sm text-destructive">{errors.instructor_id}</p>}
+              </div>
+            )}
+            {instructorMode && (
+              <div className="space-y-2">
+                <Label htmlFor="instructor_id">Instructor</Label>
+                <Input
+                  id="instructor_id"
+                  value="Tú (asignado automáticamente)"
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="tipo">Tipo de Clase *</Label>

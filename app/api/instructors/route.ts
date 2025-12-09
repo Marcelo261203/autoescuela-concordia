@@ -1,4 +1,4 @@
-import { getInstructors, createInstructor } from "@/lib/services/instructor-service"
+import { getInstructors, createInstructor, createInstructorAuthUser } from "@/lib/services/instructor-service"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -20,9 +20,26 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const instructor = await request.json()
+    const data = await request.json()
+    const { password, ...instructorData } = data
+
+    // Si se proporciona contraseña, crear usuario en auth.users primero
+    let authUserId: string | null = null
+    if (password) {
+      try {
+        authUserId = await createInstructorAuthUser(instructorData.email, password)
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Error al crear usuario de autenticación" },
+          { status: 400 },
+        )
+      }
+    }
+
+    // Crear el instructor con el auth_user_id vinculado
     const newInstructor = await createInstructor({
-      ...instructor,
+      ...instructorData,
+      auth_user_id: authUserId,
       estado: "activo",
     })
 

@@ -105,3 +105,44 @@ export async function deleteStudent(id: string) {
   const { error } = await supabase.from("students").delete().eq("id", id)
   if (error) throw new Error(error.message)
 }
+
+/**
+ * Obtiene los estudiantes que tienen clases asignadas a un instructor específico
+ * @param instructorId ID del instructor
+ * @returns Lista de estudiantes únicos que tienen clases con ese instructor
+ */
+export async function getStudentsByInstructor(instructorId: string, excludeGraduated: boolean = false) {
+  const supabase = await createClient()
+
+  // Obtener IDs únicos de estudiantes que tienen clases con este instructor
+  const { data: classesData, error: classesError } = await supabase
+    .from("classes")
+    .select("estudiante_id")
+    .eq("instructor_id", instructorId)
+
+  if (classesError) throw new Error(classesError.message)
+
+  // Obtener IDs únicos
+  const studentIds = [...new Set(classesData?.map((c) => c.estudiante_id).filter(Boolean) || [])]
+
+  if (studentIds.length === 0) {
+    return []
+  }
+
+  // Construir la consulta
+  let query = supabase
+    .from("students")
+    .select("*")
+    .in("id", studentIds)
+
+  // Si se solicita excluir graduados, filtrar por estado
+  if (excludeGraduated) {
+    query = query.neq("estado", "graduado")
+  }
+
+  const { data: students, error: studentsError } = await query.order("nombre")
+
+  if (studentsError) throw new Error(studentsError.message)
+
+  return students as Student[]
+}

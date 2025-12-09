@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import type { StudentProgress } from "@/lib/types"
 
 export async function getStudentProgress(studentId: string) {
@@ -10,7 +11,9 @@ export async function getStudentProgress(studentId: string) {
 }
 
 export async function updateStudentProgress(studentId: string) {
-  const supabase = await createClient()
+  // Usar admin client para evitar problemas con RLS cuando se actualiza desde el backend
+  // Esto permite que los instructores puedan crear clases sin problemas de permisos
+  const supabase = createAdminClient()
 
   // Obtener progreso actual para usar requisitos personalizados
   const { data: progressActual } = await supabase
@@ -94,7 +97,9 @@ export async function updateStudentProgress(studentId: string) {
 
   if (puedeGraduar && progressActual?.aprobado !== false) {
     // Actualizar estado del estudiante a "graduado" automáticamente
-    const { error: updateError } = await supabase
+    // Usar admin client para evitar problemas con RLS
+    const adminClient = createAdminClient()
+    const { error: updateError } = await adminClient
       .from("students")
       .update({ estado: "graduado" })
       .eq("id", studentId)

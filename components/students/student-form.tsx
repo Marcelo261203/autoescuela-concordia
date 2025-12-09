@@ -75,7 +75,8 @@ export function StudentForm({ isEdit = false, student }: StudentFormProps) {
           telefono: formData.telefono,
           direccion: formData.direccion,
           fecha_nacimiento: formData.fecha_nacimiento,
-          estado: formData.estado,
+          // Al crear, SIEMPRE forzar estado "activo"
+          estado: isEdit ? formData.estado : "activo",
           categoria_licencia_deseada: formData.categoria_licencia_deseada || null,
         }),
       })
@@ -207,20 +208,35 @@ export function StudentForm({ isEdit = false, student }: StudentFormProps) {
               {errors.fecha_nacimiento && <p className="text-sm text-destructive">{errors.fecha_nacimiento}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="estado">Estado *</Label>
-              <Select value={formData.estado} onValueChange={(value) => setFormData({ ...formData, estado: value })}>
-                <SelectTrigger id="estado" disabled={isLoading}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="activo">Activo</SelectItem>
-                  <SelectItem value="en_curso">En Curso</SelectItem>
-                  <SelectItem value="graduado">Graduado</SelectItem>
-                  <SelectItem value="inactivo">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Solo mostrar campo de estado al editar, al crear siempre será "activo" */}
+            {isEdit && (
+              <div className="space-y-2">
+                <Label htmlFor="estado">Estado *</Label>
+                <Select value={formData.estado} onValueChange={(value) => setFormData({ ...formData, estado: value })}>
+                  <SelectTrigger id="estado" disabled={isLoading}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="activo">Activo</SelectItem>
+                    <SelectItem value="en_curso">En Curso</SelectItem>
+                    <SelectItem value="graduado">Graduado</SelectItem>
+                    <SelectItem value="inactivo">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {!isEdit && (
+              <div className="space-y-2">
+                <Label htmlFor="estado">Estado</Label>
+                <Input
+                  id="estado"
+                  value="Activo"
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">Los nuevos estudiantes siempre se crean con estado "Activo"</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="categoria_licencia_deseada">Categoría de Licencia Deseada</Label>
