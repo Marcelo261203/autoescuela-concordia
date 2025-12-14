@@ -37,8 +37,10 @@ export default function EnrollPage() {
   // Datos de configuración del curso
   const [formData, setFormData] = useState({
     instructor_id: "",
-    horas_practicas_requeridas: 720, // 12 horas en minutos (720 minutos = 12 horas)
-    horas_teoricas_requeridas: 600, // 10 horas en minutos (600 minutos = 10 horas)
+    horas_practicas_requeridas: 12, // Horas directas
+    horas_teoricas_requeridas: 10, // Horas directas
+    fecha_clase_inicial: "",
+    hora_clase_inicial: "",
   })
 
   useEffect(() => {
@@ -124,6 +126,12 @@ export default function EnrollPage() {
     if (!formData.horas_teoricas_requeridas || formData.horas_teoricas_requeridas < 0) {
       newErrors.horas_teoricas_requeridas = "Las horas teóricas deben ser mayor o igual a 0"
     }
+    if (!formData.fecha_clase_inicial) {
+      newErrors.fecha_clase_inicial = "Debes seleccionar la fecha de la clase inicial"
+    }
+    if (!formData.hora_clase_inicial) {
+      newErrors.hora_clase_inicial = "Debes seleccionar la hora de la clase inicial"
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -140,8 +148,10 @@ export default function EnrollPage() {
         body: JSON.stringify({
           estudiante_id: selectedStudentId,
           instructor_id: formData.instructor_id,
-          horas_practicas_requeridas: formData.horas_practicas_requeridas,
-          horas_teoricas_requeridas: formData.horas_teoricas_requeridas,
+          horas_practicas_requeridas: formData.horas_practicas_requeridas * 60, // Convertir horas a minutos
+          horas_teoricas_requeridas: formData.horas_teoricas_requeridas * 60, // Convertir horas a minutos
+          fecha_clase_inicial: formData.fecha_clase_inicial,
+          hora_clase_inicial: formData.hora_clase_inicial,
         }),
       })
 
@@ -337,23 +347,21 @@ export default function EnrollPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="horas_practicas_requeridas">Horas Prácticas Requeridas (en minutos) *</Label>
+                  <Label htmlFor="horas_practicas_requeridas">Horas Prácticas Requeridas *</Label>
                   <Input
                     id="horas_practicas_requeridas"
                     type="number"
                     min="0"
-                    step="60"
+                    step="1"
                     value={formData.horas_practicas_requeridas}
                     onChange={(e) =>
                       setFormData({ ...formData, horas_practicas_requeridas: Number.parseInt(e.target.value) || 0 })
                     }
                     disabled={isLoading}
-                    placeholder="Ej: 720 (12 horas)"
+                    placeholder="Ej: 12"
                   />
                   <p className="text-xs text-muted-foreground">
-                    {formData.horas_practicas_requeridas > 0
-                      ? `Equivale a ${(formData.horas_practicas_requeridas / 60).toFixed(1)} horas`
-                      : "Ingresa la cantidad en minutos"}
+                    Ingresa la cantidad de horas prácticas requeridas para el curso
                   </p>
                   {errors.horas_practicas_requeridas && (
                     <p className="text-sm text-destructive">{errors.horas_practicas_requeridas}</p>
@@ -361,26 +369,61 @@ export default function EnrollPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="horas_teoricas_requeridas">Horas Teóricas Requeridas (en minutos) *</Label>
+                  <Label htmlFor="horas_teoricas_requeridas">Horas Teóricas Requeridas *</Label>
                   <Input
                     id="horas_teoricas_requeridas"
                     type="number"
                     min="0"
-                    step="60"
+                    step="1"
                     value={formData.horas_teoricas_requeridas}
                     onChange={(e) =>
                       setFormData({ ...formData, horas_teoricas_requeridas: Number.parseInt(e.target.value) || 0 })
                     }
                     disabled={isLoading}
-                    placeholder="Ej: 600 (10 horas)"
+                    placeholder="Ej: 10"
                   />
                   <p className="text-xs text-muted-foreground">
-                    {formData.horas_teoricas_requeridas > 0
-                      ? `Equivale a ${(formData.horas_teoricas_requeridas / 60).toFixed(1)} horas`
-                      : "Ingresa la cantidad en minutos"}
+                    Ingresa la cantidad de horas teóricas requeridas para el curso
                   </p>
                   {errors.horas_teoricas_requeridas && (
                     <p className="text-sm text-destructive">{errors.horas_teoricas_requeridas}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_clase_inicial">Fecha de la Clase Inicial *</Label>
+                  <Input
+                    id="fecha_clase_inicial"
+                    type="date"
+                    value={formData.fecha_clase_inicial}
+                    onChange={(e) => setFormData({ ...formData, fecha_clase_inicial: e.target.value })}
+                    disabled={isLoading}
+                    min={new Date().toISOString().split("T")[0]}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona la fecha para la clase introductoria
+                  </p>
+                  {errors.fecha_clase_inicial && (
+                    <p className="text-sm text-destructive">{errors.fecha_clase_inicial}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="hora_clase_inicial">Hora de la Clase Inicial *</Label>
+                  <Input
+                    id="hora_clase_inicial"
+                    type="time"
+                    value={formData.hora_clase_inicial}
+                    onChange={(e) => setFormData({ ...formData, hora_clase_inicial: e.target.value })}
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona la hora para la clase introductoria
+                  </p>
+                  {errors.hora_clase_inicial && (
+                    <p className="text-sm text-destructive">{errors.hora_clase_inicial}</p>
                   )}
                 </div>
               </div>

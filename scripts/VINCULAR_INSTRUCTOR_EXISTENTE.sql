@@ -65,3 +65,5 @@ FROM instructors i
 LEFT JOIN auth.users u ON i.auth_user_id = u.id
 ORDER BY i.nombre;
 
+
+

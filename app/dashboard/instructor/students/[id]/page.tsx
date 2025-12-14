@@ -13,6 +13,8 @@ import { AlertCircle, CheckCircle, Clock, ArrowLeft, Loader2, Award } from "luci
 import Link from "next/link"
 import type { Student, ClassWithDetails, StudentProgress } from "@/lib/types"
 import { StudentProgressCard } from "@/components/students/student-progress"
+import { StudentExam } from "@/components/students/student-exam"
+import { AdditionalHoursForm } from "@/components/instructors/additional-hours-form"
 
 const tipoColors: Record<string, string> = {
   practica: "bg-blue-100 text-blue-800",
@@ -132,6 +134,12 @@ export default function InstructorStudentDetailPage() {
       return
     }
     
+    // Validar que la clase no esté ya calificada (no se pueden editar calificaciones)
+    if (clase.estado === "cursado" || (clase.nota !== null && clase.nota !== undefined)) {
+      setSaveError("No se pueden editar calificaciones que ya están guardadas")
+      return
+    }
+    
     setEditingClassId(clase.id)
     setFormData({
       nota: clase.nota?.toString() || "",
@@ -157,6 +165,14 @@ export default function InstructorStudentDetailPage() {
       // Validar que el estudiante no esté graduado
       if (student?.estado === "graduado") {
         setSaveError("No se pueden editar calificaciones de estudiantes graduados")
+        setIsSaving(false)
+        return
+      }
+
+      // Validar que la clase no esté ya calificada (no se pueden editar calificaciones)
+      const clase = classes.find((c) => c.id === classId)
+      if (clase && (clase.estado === "cursado" || (clase.nota !== null && clase.nota !== undefined))) {
+        setSaveError("No se pueden editar calificaciones que ya están guardadas")
         setIsSaving(false)
         return
       }
@@ -370,6 +386,11 @@ export default function InstructorStudentDetailPage() {
                 {promedioTeoricas > 0 ? promedioTeoricas.toFixed(1) : "-"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{totalTeoricas} clase{totalTeoricas !== 1 ? "s" : ""}</p>
+              {totalTeoricas > 0 && (
+                <p className={`text-xs font-medium mt-1 ${promedioTeoricas >= 51 ? "text-green-600" : "text-red-600"}`}>
+                  {promedioTeoricas >= 51 ? "✓ Aprobado" : "✗ Reprobado"}
+                </p>
+              )}
             </div>
             <div className="text-center p-4 bg-white rounded-lg border border-blue-200">
               <p className="text-sm text-muted-foreground">Prácticas</p>
@@ -377,6 +398,11 @@ export default function InstructorStudentDetailPage() {
                 {promedioPracticas > 0 ? promedioPracticas.toFixed(1) : "-"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">{totalPracticas} clase{totalPracticas !== 1 ? "s" : ""}</p>
+              {totalPracticas > 0 && (
+                <p className={`text-xs font-medium mt-1 ${promedioPracticas >= 51 ? "text-green-600" : "text-red-600"}`}>
+                  {promedioPracticas >= 51 ? "✓ Aprobado" : "✗ Reprobado"}
+                </p>
+              )}
             </div>
             <div className="text-center p-4 bg-white rounded-lg border border-blue-200">
               <p className="text-sm text-muted-foreground">General</p>
@@ -390,6 +416,48 @@ export default function InstructorStudentDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Horas Adicionales por Promedios Bajos o para Editar */}
+      {((promedioTeoricas < 51 && totalTeoricas > 0) || 
+        (promedioPracticas < 51 && totalPracticas > 0) ||
+        (progress && ((progress.horas_penalizacion_practicas && progress.horas_penalizacion_practicas > 0) || 
+                     (progress.horas_penalizacion_teoricas && progress.horas_penalizacion_teoricas > 0)))) ? (
+        <Card className="border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-yellow-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-800">
+              <AlertCircle className="h-5 w-5" />
+              Horas Adicionales Requeridas
+            </CardTitle>
+            <CardDescription>
+              {((promedioTeoricas < 51 && totalTeoricas > 0) || (promedioPracticas < 51 && totalPracticas > 0))
+                ? "Los promedios no son de aprobación. Puedes agregar o editar horas adicionales para que el estudiante complete más clases."
+                : "Puedes editar las horas adicionales configuradas para este estudiante."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdditionalHoursForm
+              studentId={id}
+              progress={progress}
+              promedioTeoricas={promedioTeoricas}
+              promedioPracticas={promedioPracticas}
+              totalTeoricas={totalTeoricas}
+              totalPracticas={totalPracticas}
+              onUpdate={fetchStudentAndClasses}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Examen Final */}
+      <StudentExam
+        studentId={id}
+        progress={progress}
+        promedioTeoricas={promedioTeoricas}
+        promedioPracticas={promedioPracticas}
+        totalTeoricas={totalTeoricas}
+        totalPracticas={totalPracticas}
+        onUpdate={fetchStudentAndClasses}
+      />
 
       {/* Clases por Calificar */}
       {pendingClasses.length > 0 && (
@@ -505,12 +573,10 @@ export default function InstructorStudentDetailPage() {
           <CardHeader>
             <CardTitle>Clases Calificadas ({gradedClasses.length})</CardTitle>
             <CardDescription>
-              Historial de clases ya calificadas
-              {student?.estado === "graduado" && (
-                <span className="block mt-1 text-amber-600 font-medium">
-                  ⚠️ Este estudiante está graduado. No se pueden editar las calificaciones.
-                </span>
-              )}
+              Historial de clases ya calificadas (solo lectura)
+              <span className="block mt-1 text-blue-600 font-medium">
+                ℹ️ Las calificaciones no se pueden editar una vez guardadas.
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -527,79 +593,12 @@ export default function InstructorStudentDetailPage() {
                       </span>
                       <span className="font-medium text-blue-600">{clase.nota}%</span>
                     </div>
-                    {editingClassId === clase.id ? (
-                      <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
-                        Cancelar
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStartEdit(clase)}
-                        disabled={editingClassId !== null || student?.estado === "graduado"}
-                        title={student?.estado === "graduado" ? "No se pueden editar calificaciones de estudiantes graduados" : ""}
-                      >
-                        Editar
-                      </Button>
-                    )}
                   </div>
-                  {!editingClassId || editingClassId !== clase.id ? (
-                    clase.observaciones && (
-                      <div className="pt-2 border-t">
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-medium">Observaciones:</span> {clase.observaciones}
-                        </p>
-                      </div>
-                    )
-                  ) : (
-                    <div className="space-y-3 pt-3 border-t">
-                      {saveError && (
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>{saveError}</AlertDescription>
-                        </Alert>
-                      )}
-                      {saveSuccess && (
-                        <Alert className="bg-green-50 border-green-200">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <AlertDescription className="text-green-800">Calificación actualizada exitosamente</AlertDescription>
-                        </Alert>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor={`nota-edit-${clase.id}`}>Nota (0-100) *</Label>
-                          <Input
-                            id={`nota-edit-${clase.id}`}
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={formData.nota}
-                            onChange={(e) => setFormData({ ...formData, nota: e.target.value })}
-                            disabled={isSaving}
-                            placeholder="Ej: 85"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`observaciones-edit-${clase.id}`}>Observaciones *</Label>
-                          <Textarea
-                            id={`observaciones-edit-${clase.id}`}
-                            value={formData.observaciones}
-                            onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-                            disabled={isSaving}
-                            placeholder="Observaciones sobre la clase..."
-                            rows={3}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
-                          Cancelar
-                        </Button>
-                        <Button onClick={() => handleSaveGrade(clase.id)} disabled={isSaving}>
-                          {isSaving ? "Guardando..." : "Guardar Cambios"}
-                        </Button>
-                      </div>
+                  {clase.observaciones && (
+                    <div className="pt-2 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">Observaciones:</span> {clase.observaciones}
+                      </p>
                     </div>
                   )}
                 </div>

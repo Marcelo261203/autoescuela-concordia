@@ -74,3 +74,5 @@ COMMENT ON COLUMN instructors.auth_user_id IS 'Referencia al usuario en auth.use
 --    - El campo auth_user_id solo almacena la referencia
 -- ============================================================================
 
+
+

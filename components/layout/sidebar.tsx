@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Users, FileText, LogOut, Menu, GraduationCap, Calendar, TrendingUp, ClipboardList, Plus, UserPlus } from "lucide-react"
+import { BarChart3, Users, FileText, LogOut, Menu, GraduationCap, Calendar, TrendingUp, ClipboardList, Plus, UserPlus, User } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -141,6 +141,11 @@ export function Sidebar() {
       label: "Agendar Clase",
       href: "/dashboard/instructor/classes/create",
       icon: Plus,
+    },
+    {
+      label: "Mi Perfil",
+      href: "/dashboard/instructor/profile",
+      icon: User,
     },
   ]
 

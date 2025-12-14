@@ -120,7 +120,9 @@ export async function getClassesByStudent(studentId: string) {
 }
 
 export async function createClass(clase: Omit<Class, "id" | "created_at" | "updated_at">) {
-  const supabase = await createClient()
+  // Usar admin client para evitar problemas con RLS al insertar
+  const { createAdminClient } = await import("@/lib/supabase/admin")
+  const adminClient = createAdminClient()
   
   // Asegurar que fecha se envíe como string YYYY-MM-DD sin conversión de zona horaria
   // Si viene como Date object, convertirlo a string YYYY-MM-DD
@@ -143,34 +145,55 @@ export async function createClass(clase: Omit<Class, "id" | "created_at" | "upda
     estado: clase.estado || "agendado", // Por defecto "agendado"
   }
   
-  const { data, error } = await supabase
+  // Insertar la clase usando admin client
+  const { data: insertedData, error: insertError } = await adminClient
     .from("classes")
     .insert(claseData)
+    .select()
+    .maybeSingle()
+
+  if (insertError) throw new Error(insertError.message)
+  if (!insertedData) throw new Error("No se pudo crear la clase. No se devolvió ningún resultado.")
+
+  // Obtener la clase completa con relaciones usando admin client para evitar problemas con RLS
+  const { data, error } = await adminClient
+    .from("classes")
     .select(
       `*,
       estudiante:students(id, nombre, apellido),
       instructor:instructors(id, nombre, apellido)`,
     )
-    .single()
+    .eq("id", insertedData.id)
+    .maybeSingle()
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    // Si falla al obtener con relaciones, devolver al menos los datos básicos
+    console.warn("Error obteniendo relaciones de la clase:", error)
+    return insertedData as ClassWithDetails
+  }
+
+  if (!data) {
+    // Si no se puede obtener con relaciones, devolver al menos los datos básicos
+    return insertedData as ClassWithDetails
+  }
 
   // Verificar si el estudiante tiene clases y actualizar su estado
-  const { data: studentClasses, error: classesError } = await supabase
+  // Usar admin client para verificar y actualizar
+  const { data: studentClasses, error: classesError } = await adminClient
     .from("classes")
     .select("id")
     .eq("estudiante_id", clase.estudiante_id)
 
   if (!classesError && studentClasses && studentClasses.length > 0) {
     // Si el estudiante tiene al menos una clase, cambiar de "activo" a "en_curso"
-    const { data: student } = await supabase
+    const { data: student } = await adminClient
       .from("students")
       .select("estado")
       .eq("id", clase.estudiante_id)
-      .single()
+      .maybeSingle()
 
     if (student && student.estado === "activo") {
-      await supabase
+      await adminClient
         .from("students")
         .update({ estado: "en_curso" })
         .eq("id", clase.estudiante_id)
@@ -199,7 +222,7 @@ export async function updateClass(id: string, updates: Partial<Class>) {
       .from("classes")
       .select("fecha, hora, duracion_minutos, nota")
       .eq("id", id)
-      .single()
+      .maybeSingle()
     
     if (currentClass && !currentClass.nota) {
       try {
@@ -216,9 +239,10 @@ export async function updateClass(id: string, updates: Partial<Class>) {
     }
   }
   
-  const { data, error } = await supabase.from("classes").update(updateData).eq("id", id).select().single()
+  const { data, error } = await supabase.from("classes").update(updateData).eq("id", id).select().maybeSingle()
 
   if (error) throw new Error(error.message)
+  if (!data) throw new Error("No se encontró la clase para actualizar")
   return data as Class
 }
 
@@ -226,34 +250,43 @@ export async function updateClass(id: string, updates: Partial<Class>) {
 export async function deleteClass(id: string) {
   const supabase = await createClient()
   
-  // Obtener el estudiante_id antes de eliminar la clase
+  // Obtener el estudiante_id antes de suspender la clase
   const { data: claseToDelete } = await supabase
     .from("classes")
     .select("estudiante_id")
     .eq("id", id)
-    .single()
+    .maybeSingle()
 
-  const estudianteId = claseToDelete?.estudiante_id
+  if (!claseToDelete) {
+    throw new Error("No se encontró la clase para eliminar")
+  }
 
-  // Eliminar la clase
-  const { error } = await supabase.from("classes").delete().eq("id", id)
+  const estudianteId = claseToDelete.estudiante_id
+
+  // En lugar de eliminar, cambiar el estado a "suspendida"
+  const { error } = await supabase
+    .from("classes")
+    .update({ estado: "suspendida" })
+    .eq("id", id)
+  
   if (error) throw new Error(error.message)
 
-  // Si se eliminó la clase, verificar si el estudiante aún tiene clases
+  // Si se suspendió la clase, verificar si el estudiante aún tiene clases activas
   if (estudianteId) {
     const { data: remainingClasses, error: classesError } = await supabase
       .from("classes")
       .select("id")
       .eq("estudiante_id", estudianteId)
+      .in("estado", ["agendado", "por_calificar", "cursado"]) // Solo contar clases activas
       .limit(1)
 
-    // Si no tiene más clases y está en "en_curso", volver a "activo"
+    // Si no tiene más clases activas y está en "en_curso", volver a "activo"
     if (!classesError && (!remainingClasses || remainingClasses.length === 0)) {
       const { data: student } = await supabase
         .from("students")
         .select("estado")
         .eq("id", estudianteId)
-        .single()
+        .maybeSingle()
 
       if (student && student.estado === "en_curso") {
         await supabase
@@ -268,12 +301,19 @@ export async function deleteClass(id: string) {
 export async function checkClassConflict(
   fecha: string,
   hora: string,
+  duracion_minutos: number,
   estudiante_id?: string,
   instructor_id?: string,
   excludeId?: string,
 ) {
   const supabase = await createClient()
-  let query = supabase.from("classes").select("id").eq("fecha", fecha).eq("hora", hora)
+  
+  // Obtener todas las clases en la misma fecha (para verificar superposiciones)
+  let query = supabase
+    .from("classes")
+    .select("id, hora, duracion_minutos, estudiante_id, instructor_id")
+    .eq("fecha", fecha)
+    .neq("estado", "suspendida") // Excluir clases suspendidas
 
   // Si se proporciona estudiante_id, verificar conflicto con ese estudiante
   if (estudiante_id) {
@@ -290,30 +330,46 @@ export async function checkClassConflict(
     query = query.neq("id", excludeId)
   }
 
-  const { data, error } = await query.limit(1)
+  const { data: existingClasses, error } = await query
 
   if (error) throw new Error(error.message)
 
-  if (data && data.length > 0) {
-    if (estudiante_id && instructor_id) {
-      return {
-        conflict: true,
-        message: "Ya existe una clase para este estudiante e instructor en esta fecha y hora",
-      }
-    } else if (estudiante_id) {
-      return {
-        conflict: true,
-        message: "Ya existe una clase para este estudiante en esta fecha y hora",
-      }
-    } else if (instructor_id) {
-      return {
-        conflict: true,
-        message: "Ya existe una clase para este instructor en esta fecha y hora",
-      }
-    } else {
-      return {
-        conflict: true,
-        message: "Ya existe una clase en esta fecha y hora",
+  if (!existingClasses || existingClasses.length === 0) {
+    return { conflict: false }
+  }
+
+  // Calcular el rango de tiempo de la nueva clase
+  const [horaH, horaM] = hora.split(":").map(Number)
+  const inicioNuevaClase = horaH * 60 + horaM // En minutos desde medianoche
+  const finNuevaClase = inicioNuevaClase + (duracion_minutos || 60)
+
+  // Verificar superposiciones con clases existentes
+  for (const existingClass of existingClasses) {
+    const [horaExistenteH, horaExistenteM] = existingClass.hora.split(":").map(Number)
+    const inicioExistente = horaExistenteH * 60 + horaExistenteM
+    const finExistente = inicioExistente + (existingClass.duracion_minutos || 60)
+
+    // Verificar si hay superposición: las clases se superponen si una empieza antes de que termine la otra
+    const haySuperposicion = 
+      (inicioNuevaClase < finExistente && finNuevaClase > inicioExistente)
+
+    if (haySuperposicion) {
+      // Verificar si es el mismo estudiante o instructor
+      if (estudiante_id && instructor_id && existingClass.estudiante_id === estudiante_id && existingClass.instructor_id === instructor_id) {
+        return {
+          conflict: true,
+          message: "Ya existe una clase para este estudiante e instructor que se superpone con el horario seleccionado",
+        }
+      } else if (estudiante_id && existingClass.estudiante_id === estudiante_id) {
+        return {
+          conflict: true,
+          message: "Ya existe una clase para este estudiante que se superpone con el horario seleccionado",
+        }
+      } else if (instructor_id && existingClass.instructor_id === instructor_id) {
+        return {
+          conflict: true,
+          message: "Ya existe una clase para este instructor que se superpone con el horario seleccionado",
+        }
       }
     }
   }
@@ -334,7 +390,7 @@ export async function checkHoursExceeded(
     .from("student_progress")
     .select("*")
     .eq("estudiante_id", estudiante_id)
-    .single()
+    .maybeSingle()
 
   if (progressError && progressError.code !== "PGRST116") {
     throw new Error(progressError.message)
@@ -345,11 +401,12 @@ export async function checkHoursExceeded(
     return { exceeded: false }
   }
 
-  // Obtener todas las clases del estudiante (excepto la que se está editando)
+  // Obtener todas las clases del estudiante (excepto la que se está editando y las suspendidas)
   let classesQuery = supabase
     .from("classes")
     .select("tipo, duracion_minutos")
     .eq("estudiante_id", estudiante_id)
+    .neq("estado", "suspendida") // Excluir clases suspendidas
 
   if (excludeClassId) {
     classesQuery = classesQuery.neq("id", excludeClassId)
@@ -382,8 +439,18 @@ export async function checkHoursExceeded(
   const horasPracticasRequeridas = horasPracticasRequeridasBase + horasPenalizacionPracticas
   const horasTeoricasRequeridas = horasTeoricasRequeridasBase + horasPenalizacionTeoricas
 
-  // Verificar si la nueva clase excedería los requisitos
+  // Verificar si la nueva clase excedería los requisitos o si ya está al 100%
   if (tipo === "practica") {
+    // Verificar si ya está al 100% o más
+    if (horasPracticasRequeridas > 0 && horasPracticasActuales >= horasPracticasRequeridas) {
+      const horasActuales = Math.round((horasPracticasActuales / 60) * 10) / 10
+      const horasRequeridas = Math.round((horasPracticasRequeridas / 60) * 10) / 10
+      return {
+        exceeded: true,
+        message: `El estudiante ya completó el 100% de sus ${horasRequeridas}h de clases prácticas requeridas (tiene ${horasActuales}h). No se pueden crear más clases prácticas.`,
+      }
+    }
+    
     const horasPracticasNuevas = horasPracticasActuales + duracion_minutos
     if (horasPracticasNuevas > horasPracticasRequeridas) {
       const horasActuales = Math.round((horasPracticasActuales / 60) * 10) / 10
@@ -395,6 +462,16 @@ export async function checkHoursExceeded(
       }
     }
   } else if (tipo === "teorica") {
+    // Verificar si ya está al 100% o más
+    if (horasTeoricasRequeridas > 0 && horasTeoricasActuales >= horasTeoricasRequeridas) {
+      const horasActuales = Math.round((horasTeoricasActuales / 60) * 10) / 10
+      const horasRequeridas = Math.round((horasTeoricasRequeridas / 60) * 10) / 10
+      return {
+        exceeded: true,
+        message: `El estudiante ya completó el 100% de sus ${horasRequeridas}h de clases teóricas requeridas (tiene ${horasActuales}h). No se pueden crear más clases teóricas.`,
+      }
+    }
+    
     const horasTeoricasNuevas = horasTeoricasActuales + duracion_minutos
     if (horasTeoricasNuevas > horasTeoricasRequeridas) {
       const horasActuales = Math.round((horasTeoricasActuales / 60) * 10) / 10
@@ -412,22 +489,30 @@ export async function checkHoursExceeded(
 
 /**
  * Verificar si la hora de la clase está dentro del horario disponible del instructor
+ * También verifica que la clase no termine después del horario de fin
  */
 export async function checkInstructorAvailability(
   instructor_id: string,
   hora: string,
+  duracion_minutos: number = 60,
 ): Promise<{ available: boolean; message?: string }> {
-  const supabase = await createClient()
+  // Usar admin client para evitar problemas con RLS
+  const { createAdminClient } = await import("@/lib/supabase/admin")
+  const adminClient = createAdminClient()
 
   // Obtener información del instructor
-  const { data: instructor, error } = await supabase
+  const { data: instructor, error } = await adminClient
     .from("instructors")
     .select("hora_inicio, hora_fin, nombre, apellido")
     .eq("id", instructor_id)
-    .single()
+    .maybeSingle()
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  if (!instructor) {
+    throw new Error("No se encontró el instructor")
   }
 
   // Si el instructor no tiene horario definido (ambos NULL), permitir cualquier hora
@@ -443,12 +528,23 @@ export async function checkInstructorAvailability(
   const horaInicioMinutos = horaInicioH * 60 + horaInicioM
   const horaFinMinutos = horaFinH * 60 + horaFinM
   const horaClaseMinutos = horaClaseH * 60 + horaClaseM
+  const horaClaseFinMinutos = horaClaseMinutos + duracion_minutos
 
-  // Verificar si la hora de la clase está dentro del rango
+  // Verificar si la hora de inicio de la clase está dentro del rango
   if (horaClaseMinutos < horaInicioMinutos || horaClaseMinutos >= horaFinMinutos) {
     return {
       available: false,
-      message: `El instructor ${instructor.nombre} ${instructor.apellido} solo está disponible entre las ${instructor.hora_inicio} y las ${instructor.hora_fin}. La clase programada a las ${hora} está fuera de este horario.`,
+      message: `Tu horario disponible es de ${instructor.hora_inicio} a ${instructor.hora_fin}. La clase programada a las ${hora} está fuera de este horario.`,
+    }
+  }
+
+  // Verificar que la clase no termine después del horario de fin
+  if (horaClaseFinMinutos > horaFinMinutos) {
+    const horaFinClase = new Date(0, 0, 0, Math.floor(horaClaseFinMinutos / 60), horaClaseFinMinutos % 60)
+    const horaFinFormateada = `${String(Math.floor(horaClaseFinMinutos / 60)).padStart(2, "0")}:${String(horaClaseFinMinutos % 60).padStart(2, "0")}`
+    return {
+      available: false,
+      message: `Tu horario disponible es de ${instructor.hora_inicio} a ${instructor.hora_fin}. La clase terminaría a las ${horaFinFormateada}, que está fuera de tu horario disponible.`,
     }
   }
 

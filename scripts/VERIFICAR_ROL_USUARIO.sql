@@ -41,3 +41,5 @@ WHERE u.id = 'TU_USER_ID_AQUI'; -- Reemplaza con tu user ID
 -- puedes desvincularlo con este comando:
 -- UPDATE instructors SET auth_user_id = NULL WHERE auth_user_id = 'TU_USER_ID_AQUI';
 
+
+

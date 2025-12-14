@@ -22,11 +22,12 @@ export async function updateStudentProgress(studentId: string) {
     .eq("estudiante_id", studentId)
     .single()
 
-  // Obtener todas las clases con su duración
+  // Obtener todas las clases con su duración (excluyendo las suspendidas)
   const { data: classes, error: classError } = await supabase
     .from("classes")
     .select("tipo, duracion_minutos")
     .eq("estudiante_id", studentId)
+    .neq("estado", "suspendida") // Excluir clases suspendidas del cálculo de progreso
 
   if (classError) throw new Error(classError.message)
 
@@ -89,13 +90,17 @@ export async function updateStudentProgress(studentId: string) {
   const completadoPracticas = horasPracticasRequeridas > 0 ? horasPracticas >= horasPracticasRequeridas : false
   const completadoTeoricas = horasTeoricasRequeridas > 0 ? horasTeoricas >= horasTeoricasRequeridas : false
   const examenAprobado = progressActual?.aprobado === true
+  const examenCalificado = progressActual?.nota_final !== null && progressActual?.nota_final !== undefined
 
-  // Solo graduar si completó horas Y aprobó el examen (si ya se registró examen)
+  // Solo graduar si:
+  // 1. Completó todas las horas requeridas (prácticas y teóricas)
+  // 2. El examen final ya fue calificado (tiene nota_final)
+  // 3. El examen fue aprobado (aprobado === true)
   // Y solo si hay requisitos configurados
   const puedeGraduar = horasPracticasRequeridas > 0 && horasTeoricasRequeridas > 0 && 
-    completadoPracticas && completadoTeoricas && (examenAprobado || progressActual?.aprobado === null)
+    completadoPracticas && completadoTeoricas && examenCalificado && examenAprobado
 
-  if (puedeGraduar && progressActual?.aprobado !== false) {
+  if (puedeGraduar) {
     // Actualizar estado del estudiante a "graduado" automáticamente
     // Usar admin client para evitar problemas con RLS
     const adminClient = createAdminClient()

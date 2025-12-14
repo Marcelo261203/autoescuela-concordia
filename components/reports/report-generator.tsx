@@ -26,6 +26,7 @@ const estadoColors: Record<string, string> = {
   agendado: "bg-yellow-100 text-yellow-800",
   por_calificar: "bg-orange-100 text-orange-800",
   cursado: "bg-green-100 text-green-800",
+  suspendida: "bg-red-100 text-red-800",
 }
 
 export function ReportGenerator() {
@@ -98,6 +99,7 @@ export function ReportGenerator() {
     agendado: classes.filter((c) => c.estado === "agendado").length,
     por_calificar: classes.filter((c) => c.estado === "por_calificar").length,
     cursado: classes.filter((c) => c.estado === "cursado").length,
+    suspendida: classes.filter((c) => c.estado === "suspendida").length,
     calificadas: classes.filter((c) => c.nota !== null && c.nota !== undefined).length,
   }
 
@@ -203,7 +205,7 @@ export function ReportGenerator() {
         c.tipo === "practica" ? "Práctica" : "Teórica",
         c.categoria_licencia || "N/A",
         c.duracion_minutos,
-        c.estado === "agendado" ? "Agendado" : c.estado === "por_calificar" ? "Por Calificar" : c.estado === "cursado" ? "Cursado" : "N/A",
+        c.estado === "agendado" ? "Agendado" : c.estado === "por_calificar" ? "Por Calificar" : c.estado === "cursado" ? "Cursado" : c.estado === "suspendida" ? "Suspendida" : "N/A",
         c.nota !== null && c.nota !== undefined ? c.nota.toString() : "Sin calificar",
         c.observaciones || "",
       ])
@@ -468,6 +470,7 @@ export function ReportGenerator() {
                       <SelectItem value="agendado">Agendadas</SelectItem>
                       <SelectItem value="por_calificar">Por Calificar</SelectItem>
                       <SelectItem value="cursado">Cursadas</SelectItem>
+                      <SelectItem value="suspendida">Suspendidas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -504,7 +507,7 @@ export function ReportGenerator() {
               </CardTitle>
               <CardDescription>
                 {classTipo !== "all" || classEstado !== "all"
-                  ? `Clases filtradas${classTipo !== "all" ? ` - Tipo: ${classTipo === "practica" ? "Prácticas" : "Teóricas"}` : ""}${classEstado !== "all" ? ` - Estado: ${classEstado === "agendado" ? "Agendadas" : classEstado === "por_calificar" ? "Por Calificar" : "Cursadas"}` : ""}`
+                  ? `Clases filtradas${classTipo !== "all" ? ` - Tipo: ${classTipo === "practica" ? "Prácticas" : "Teóricas"}` : ""}${classEstado !== "all" ? ` - Estado: ${classEstado === "agendado" ? "Agendadas" : classEstado === "por_calificar" ? "Por Calificar" : classEstado === "cursado" ? "Cursadas" : classEstado === "suspendida" ? "Suspendidas" : ""}` : ""}`
                   : "Resumen general de todas las clases"}
               </CardDescription>
             </CardHeader>
@@ -609,7 +612,11 @@ export function ReportGenerator() {
                                   ? "AGENDADO"
                                   : classItem.estado === "por_calificar"
                                     ? "POR CALIFICAR"
-                                    : "CURSADO"}
+                                    : classItem.estado === "cursado"
+                                      ? "CURSADO"
+                                      : classItem.estado === "suspendida"
+                                        ? "SUSPENDIDA"
+                                        : "N/A"}
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground text-xs">-</span>

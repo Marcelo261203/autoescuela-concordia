@@ -18,12 +18,10 @@ export async function GET(request: Request) {
       )
     }
 
-    // Obtener los estudiantes del instructor (excluyendo graduados por defecto)
-    // Si se necesita incluir graduados, se puede agregar un parámetro de query
-    const { searchParams } = new URL(request.url)
-    const includeGraduated = searchParams.get("includeGraduated") === "true"
-    
-    const students = await getStudentsByInstructor(instructorId, !includeGraduated)
+    // Obtener los estudiantes del instructor
+    // Incluir todos los estudiantes que tienen clases con el instructor, incluso si completaron todas sus clases
+    // Esto permite que el instructor pueda calificar el examen final
+    const students = await getStudentsByInstructor(instructorId, false)
 
     return NextResponse.json({ data: students })
   } catch (error) {

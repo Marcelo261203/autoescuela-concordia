@@ -146,7 +146,8 @@ export function ClassForm({ isEdit = false, classData, instructorMode = false }:
   }
 
   const handleStudentChange = async (studentId: string) => {
-    setFormData({ ...formData, estudiante_id: studentId })
+    // Primero actualizar el estudiante_id
+    setFormData((prev) => ({ ...prev, estudiante_id: studentId }))
 
     // Si se selecciona un estudiante, cargar su duración estándar y categoría de licencia
     if (studentId) {
@@ -165,12 +166,11 @@ export function ClassForm({ isEdit = false, classData, instructorMode = false }:
             return
           }
           
-          if (studentData?.categoria_licencia_deseada) {
-            setFormData((prev) => ({
-              ...prev,
-              categoria_licencia: studentData.categoria_licencia_deseada,
-            }))
-          }
+          // Actualizar categoría de licencia si el estudiante tiene una
+          setFormData((prev) => ({
+            ...prev,
+            categoria_licencia: studentData?.categoria_licencia_deseada || "",
+          }))
         }
 
         // Cargar progreso para obtener duración estándar
@@ -241,7 +241,7 @@ export function ClassForm({ isEdit = false, classData, instructorMode = false }:
           estudiante_id: formData.estudiante_id,
           instructor_id: instructorMode ? currentInstructorId : formData.instructor_id,
           tipo: formData.tipo,
-          duracion_minutos: formData.duracion_minutos,
+          duracion_minutos: formData.duracion_minutos || 60,
           excludeId: isEdit && classData?.id ? classData.id : undefined,
         }),
       })
@@ -429,9 +429,19 @@ export function ClassForm({ isEdit = false, classData, instructorMode = false }:
                   setFormData({ ...formData, categoria_licencia: value === "all" ? "" : value })
                 }
                 disabled={isLoading}
+                key={formData.categoria_licencia || "all"}
               >
                 <SelectTrigger id="categoria_licencia">
-                  <SelectValue placeholder="Selecciona categoría" />
+                  <SelectValue placeholder="Selecciona categoría">
+                    {formData.categoria_licencia ? (
+                      formData.categoria_licencia === "M" ? "M - Moto" :
+                      formData.categoria_licencia === "P" ? "P - Particular (Auto)" :
+                      formData.categoria_licencia === "A" ? "A - Autobús" :
+                      formData.categoria_licencia === "B" ? "B - Bus/Camión" :
+                      formData.categoria_licencia === "C" ? "C - Profesional (Top)" :
+                      formData.categoria_licencia
+                    ) : "Selecciona categoría"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Sin categoría</SelectItem>

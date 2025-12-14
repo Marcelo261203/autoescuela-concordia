@@ -8,8 +8,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import type { Student } from "@/lib/types"
-import type { StudentProgress } from "@/lib/types"
+import type { Student, StudentProgress, ClassWithDetails } from "@/lib/types"
 
 export default function StudentProgressDetailPage() {
   const params = useParams()
@@ -17,12 +16,14 @@ export default function StudentProgressDetailPage() {
   const id = params.id as string
   const [student, setStudent] = useState<Student | null>(null)
   const [progress, setProgress] = useState<StudentProgress | null>(null)
+  const [classes, setClasses] = useState<ClassWithDetails[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchStudent()
     fetchProgress()
+    fetchClasses()
   }, [id])
 
   const fetchStudent = async () => {
@@ -60,8 +61,65 @@ export default function StudentProgressDetailPage() {
     }
   }
 
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch(`/api/classes?estudiante_id=${id}&limit=1000`)
+      if (response.ok) {
+        const data = await response.json()
+        const sortedClasses = (data.data || []).sort((a: ClassWithDetails, b: ClassWithDetails) => {
+          const dateA = new Date(`${a.fecha}T${a.hora}`)
+          const dateB = new Date(`${b.fecha}T${b.hora}`)
+          return dateB.getTime() - dateA.getTime()
+        })
+        setClasses(sortedClasses)
+      }
+    } catch (error) {
+      console.error("Error fetching classes:", error)
+    }
+  }
+
+  // Calcular promedios
+  const calculateAverages = () => {
+    const gradedClasses = classes.filter((c) => c.estado === "cursado")
+    const clasesConNota = gradedClasses.filter((c) => c.nota !== null && c.nota !== undefined)
+    
+    if (clasesConNota.length === 0) {
+      return {
+        promedioTeoricas: 0,
+        promedioPracticas: 0,
+        promedioGeneral: 0,
+        totalTeoricas: 0,
+        totalPracticas: 0,
+      }
+    }
+
+    const clasesTeoricas = clasesConNota.filter((c) => c.tipo === "teorica")
+    const clasesPracticas = clasesConNota.filter((c) => c.tipo === "practica")
+
+    const promedioTeoricas =
+      clasesTeoricas.length > 0
+        ? Math.round((clasesTeoricas.reduce((sum, c) => sum + (c.nota || 0), 0) / clasesTeoricas.length) * 10) / 10
+        : 0
+    const promedioPracticas =
+      clasesPracticas.length > 0
+        ? Math.round((clasesPracticas.reduce((sum, c) => sum + (c.nota || 0), 0) / clasesPracticas.length) * 10) / 10
+        : 0
+    const promedioGeneral = Math.round((clasesConNota.reduce((sum, c) => sum + (c.nota || 0), 0) / clasesConNota.length) * 10) / 10
+
+    return {
+      promedioTeoricas,
+      promedioPracticas,
+      promedioGeneral,
+      totalTeoricas: clasesTeoricas.length,
+      totalPracticas: clasesPracticas.length,
+    }
+  }
+
+  const { promedioTeoricas, promedioPracticas, totalTeoricas, totalPracticas } = calculateAverages()
+
   const handleProgressUpdate = () => {
     fetchProgress()
+    fetchClasses()
   }
 
   if (isLoading) {
@@ -115,7 +173,15 @@ export default function StudentProgressDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <StudentProgressCard studentId={student.id} />
-          <StudentExam studentId={student.id} progress={progress} onUpdate={handleProgressUpdate} />
+          <StudentExam
+            studentId={student.id}
+            progress={progress}
+            promedioTeoricas={promedioTeoricas}
+            promedioPracticas={promedioPracticas}
+            totalTeoricas={totalTeoricas}
+            totalPracticas={totalPracticas}
+            onUpdate={handleProgressUpdate}
+          />
         </div>
         <div className="space-y-6">
           <StudentRequirements studentId={student.id} progress={progress} onUpdate={handleProgressUpdate} />

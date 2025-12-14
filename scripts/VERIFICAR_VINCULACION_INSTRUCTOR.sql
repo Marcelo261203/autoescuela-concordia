@@ -62,3 +62,5 @@ ORDER BY u.created_at DESC;
 -- SET auth_user_id = 'USER_ID_AQUI'
 -- WHERE id = 'INSTRUCTOR_ID_AQUI';
 
+
+

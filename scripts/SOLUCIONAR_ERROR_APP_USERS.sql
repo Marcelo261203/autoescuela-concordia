@@ -25,3 +25,5 @@ ALTER TABLE IF EXISTS app_users DISABLE ROW LEVEL SECURITY;
 -- puedes ignorar este error. No afecta el funcionamiento del sistema.
 -- ============================================================================
 
+
+

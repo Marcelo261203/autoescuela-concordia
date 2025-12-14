@@ -28,9 +28,10 @@ export async function getInstructors(page = 1, limit = 10, estado?: string) {
 
 export async function getInstructorById(id: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase.from("instructors").select("*").eq("id", id).single()
+  const { data, error } = await supabase.from("instructors").select("*").eq("id", id).maybeSingle()
 
   if (error) throw new Error(error.message)
+  if (!data) throw new Error("No se encontró el instructor con el ID proporcionado")
   return data as Instructor
 }
 
@@ -44,9 +45,10 @@ export async function createInstructor(instructor: Omit<Instructor, "id" | "crea
 
 export async function updateInstructor(id: string, updates: Partial<Instructor>) {
   const supabase = await createClient()
-  const { data, error } = await supabase.from("instructors").update(updates).eq("id", id).select().single()
+  const { data, error } = await supabase.from("instructors").update(updates).eq("id", id).select().maybeSingle()
 
   if (error) throw new Error(error.message)
+  if (!data) throw new Error("No se encontró el instructor para actualizar")
   return data as Instructor
 }
 

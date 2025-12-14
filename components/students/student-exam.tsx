@@ -13,9 +13,22 @@ interface StudentExamProps {
   studentId: string
   progress?: StudentProgress | null
   onUpdate?: () => void
+  // Promedios de clases para validación
+  promedioTeoricas?: number
+  promedioPracticas?: number
+  totalTeoricas?: number
+  totalPracticas?: number
 }
 
-export function StudentExam({ studentId, progress, onUpdate }: StudentExamProps) {
+export function StudentExam({ 
+  studentId, 
+  progress, 
+  onUpdate,
+  promedioTeoricas = 0,
+  promedioPracticas = 0,
+  totalTeoricas = 0,
+  totalPracticas = 0,
+}: StudentExamProps) {
   const [formData, setFormData] = useState({
     nota_final: progress?.nota_final?.toString() || "",
     aprobado: progress?.aprobado ?? null,
@@ -33,6 +46,12 @@ export function StudentExam({ studentId, progress, onUpdate }: StudentExamProps)
   const [canTakeExam, setCanTakeExam] = useState(false)
   const [examMessage, setExamMessage] = useState("")
   const [isExamGraded, setIsExamGraded] = useState(false)
+
+  // Asegurar que los valores siempre sean números para mantener el array de dependencias consistente
+  const avgTeoricas = promedioTeoricas ?? 0
+  const avgPracticas = promedioPracticas ?? 0
+  const totalTeor = totalTeoricas ?? 0
+  const totalPrac = totalPracticas ?? 0
 
   useEffect(() => {
     if (progress) {
@@ -63,32 +82,88 @@ export function StudentExam({ studentId, progress, onUpdate }: StudentExamProps)
       const horasPracticasRequeridas = horasPracticasRequeridasBase + horasPenalizacionPracticas
       const horasTeoricasRequeridas = horasTeoricasRequeridasBase + horasPenalizacionTeoricas
 
-      const horasPracticasCompletadas = progress.clases_practicas_realizadas >= horasPracticasRequeridas
-      const horasTeoricasCompletadas = progress.clases_teoricas_realizadas >= horasTeoricasRequeridas
+      // Validar horas completadas (solo si hay requisitos configurados)
+      // Si no hay requisitos (0 o null), se considera completado automáticamente
+      // Usar un margen de error de 1 minuto para evitar problemas de redondeo
+      const horasPracticasCompletadas = 
+        !horasPracticasRequeridas || 
+        horasPracticasRequeridas === 0 || 
+        progress.clases_practicas_realizadas >= horasPracticasRequeridas ||
+        (horasPracticasRequeridas - progress.clases_practicas_realizadas) <= 1
+      
+      const horasTeoricasCompletadas = 
+        !horasTeoricasRequeridas || 
+        horasTeoricasRequeridas === 0 || 
+        progress.clases_teoricas_realizadas >= horasTeoricasRequeridas ||
+        (horasTeoricasRequeridas - progress.clases_teoricas_realizadas) <= 1
 
-      const completado = horasPracticasCompletadas && horasTeoricasCompletadas
+      // Validar promedios (>= 51)
+      // IMPORTANTE: Se requiere al menos una clase calificada Y promedio >= 51
+      const teoricasAprobadas = totalTeor > 0 && avgTeoricas >= 51
+      const practicasAprobadas = totalPrac > 0 && avgPracticas >= 51
+
+      const completado = horasPracticasCompletadas && horasTeoricasCompletadas && teoricasAprobadas && practicasAprobadas
 
       setCanTakeExam(completado)
 
       if (!completado) {
-        const horasPracticasFaltantes = Math.max(0, horasPracticasRequeridas - progress.clases_practicas_realizadas)
-        const horasTeoricasFaltantes = Math.max(0, horasTeoricasRequeridas - progress.clases_teoricas_realizadas)
-        const horasPracticasFaltantesDisplay = Math.round((horasPracticasFaltantes / 60) * 10) / 10
-        const horasTeoricasFaltantesDisplay = Math.round((horasTeoricasFaltantes / 60) * 10) / 10
+        const razones: string[] = []
+        
+        // Verificar horas (solo si hay requisitos configurados y no están completas)
+        // Verificar horas prácticas
+        if (horasPracticasRequeridas > 0 && !horasPracticasCompletadas) {
+          const horasPracticasFaltantes = horasPracticasRequeridas - progress.clases_practicas_realizadas
+          // Solo mostrar mensaje si realmente faltan horas (mayor a 0)
+          // Usar un pequeño margen de error (1 minuto) para evitar problemas de redondeo
+          if (horasPracticasFaltantes > 1) {
+            const horasPracticasFaltantesDisplay = Math.round((horasPracticasFaltantes / 60) * 10) / 10
+            razones.push(`Faltan ${horasPracticasFaltantesDisplay}h de clases prácticas`)
+          }
+        }
+        // Verificar horas teóricas
+        if (horasTeoricasRequeridas > 0 && !horasTeoricasCompletadas) {
+          const horasTeoricasFaltantes = horasTeoricasRequeridas - progress.clases_teoricas_realizadas
+          // Solo mostrar mensaje si realmente faltan horas (mayor a 0)
+          // Usar un pequeño margen de error (1 minuto) para evitar problemas de redondeo
+          if (horasTeoricasFaltantes > 1) {
+            const horasTeoricasFaltantesDisplay = Math.round((horasTeoricasFaltantes / 60) * 10) / 10
+            razones.push(`Faltan ${horasTeoricasFaltantesDisplay}h de clases teóricas`)
+          }
+        }
 
-        let mensaje = "El estudiante debe completar todas sus horas requeridas antes de poder calificar el examen.\n\n"
-        if (horasPracticasFaltantes > 0) {
-          mensaje += `Faltan ${horasPracticasFaltantesDisplay}h de clases prácticas. `
+        // Verificar promedios
+        if (totalTeor === 0) {
+          razones.push("No tiene clases teóricas calificadas")
+        } else if (avgTeoricas < 51) {
+          razones.push(`Promedio de teóricas (${avgTeoricas.toFixed(1)}) es menor a 51. Necesita más sesiones.`)
         }
-        if (horasTeoricasFaltantes > 0) {
-          mensaje += `Faltan ${horasTeoricasFaltantesDisplay}h de clases teóricas.`
+
+        if (totalPrac === 0) {
+          razones.push("No tiene clases prácticas calificadas")
+        } else if (avgPracticas < 51) {
+          razones.push(`Promedio de prácticas (${avgPracticas.toFixed(1)}) es menor a 51. Necesita más sesiones.`)
         }
+
+        // Si no hay razones específicas pero aún no está completado, mostrar información de debug
+        if (razones.length === 0) {
+          // Esto no debería pasar, pero lo manejamos para debugging
+          const debugInfo = [
+            `Horas prácticas: ${progress.clases_practicas_realizadas} / ${horasPracticasRequeridas} (completadas: ${horasPracticasCompletadas})`,
+            `Horas teóricas: ${progress.clases_teoricas_realizadas} / ${horasTeoricasRequeridas} (completadas: ${horasTeoricasCompletadas})`,
+            `Promedio teóricas: ${avgTeoricas.toFixed(1)} (${totalTeor} clases) - Aprobado: ${teoricasAprobadas}`,
+            `Promedio prácticas: ${avgPracticas.toFixed(1)} (${totalPrac} clases) - Aprobado: ${practicasAprobadas}`,
+          ]
+          razones.push("Información de depuración:\n" + debugInfo.join("\n"))
+        }
+
+        let mensaje = "El estudiante debe cumplir todos los requisitos antes de poder calificar el examen:\n\n"
+        mensaje += razones.join("\n")
         setExamMessage(mensaje.trim())
       } else {
         setExamMessage("")
       }
     }
-  }, [progress])
+  }, [progress, avgTeoricas, avgPracticas, totalTeor, totalPrac])
 
   const handleNotaChange = (nota: string) => {
     const notaNum = Number.parseFloat(nota)
@@ -120,7 +195,7 @@ export function StudentExam({ studentId, progress, onUpdate }: StudentExamProps)
     
     // Verificar si puede tomar el examen
     if (!canTakeExam) {
-      setError("No se puede calificar el examen hasta que el estudiante complete todas sus horas requeridas.")
+      setError("No se puede calificar el examen hasta que el estudiante complete todas sus horas requeridas y tenga promedios >= 51 en teóricas y prácticas.")
       return
     }
 

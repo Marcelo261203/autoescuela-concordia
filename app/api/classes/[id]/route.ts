@@ -81,7 +81,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       const supabase = await createClient()
       const { data: clase, error: claseError } = await supabase
         .from("classes")
-        .select("instructor_id, estudiante_id")
+        .select("instructor_id, estudiante_id, estado, nota")
         .eq("id", id)
         .single()
 
@@ -91,6 +91,22 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
       if (clase.instructor_id !== instructorId) {
         return NextResponse.json({ error: "No tienes permiso para actualizar esta clase" }, { status: 403 })
+      }
+
+      // Verificar que la clase no esté suspendida
+      if (clase.estado === "suspendida") {
+        return NextResponse.json(
+          { error: "No se pueden editar clases suspendidas." },
+          { status: 400 },
+        )
+      }
+
+      // Verificar que la clase no esté calificada (estado "cursado" o con nota)
+      if (clase.estado === "cursado" || (clase.nota !== null && clase.nota !== undefined)) {
+        return NextResponse.json(
+          { error: "No se pueden actualizar clases que ya están calificadas. Las clases con estado 'cursado' o que tienen una nota no pueden ser modificadas." },
+          { status: 400 },
+        )
       }
 
       // Verificar que el estudiante no esté graduado
@@ -152,14 +168,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       const updated = await updateClass(id, allowedUpdates)
 
       // Actualizar progreso del estudiante
-      const { data: claseCompleta } = await supabase
-        .from("classes")
-        .select("estudiante_id")
-        .eq("id", id)
-        .single()
-
-      if (claseCompleta?.estudiante_id) {
-        await updateStudentProgress(claseCompleta.estudiante_id)
+      if (clase.estudiante_id) {
+        await updateStudentProgress(clase.estudiante_id)
       }
 
       return NextResponse.json(updated)
@@ -186,11 +196,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { id } = await params
     const userRole = await getUserRole()
     
-    // Obtener el estudiante_id y instructor_id antes de eliminar la clase
+    // Obtener el estudiante_id, instructor_id, estado y nota antes de eliminar la clase
     const supabase = await createClient()
     const { data: clase, error: claseError } = await supabase
       .from("classes")
-      .select("estudiante_id, instructor_id")
+      .select("estudiante_id, instructor_id, estado, nota")
       .eq("id", id)
       .single()
     
@@ -209,6 +219,22 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         return NextResponse.json(
           { error: "No tienes permiso para eliminar esta clase" },
           { status: 403 },
+        )
+      }
+
+      // Verificar que la clase no esté suspendida
+      if (clase.estado === "suspendida") {
+        return NextResponse.json(
+          { error: "No se pueden eliminar clases suspendidas." },
+          { status: 400 },
+        )
+      }
+
+      // Verificar que la clase no esté calificada (estado "cursado" o con nota)
+      if (clase.estado === "cursado" || (clase.nota !== null && clase.nota !== undefined)) {
+        return NextResponse.json(
+          { error: "No se pueden eliminar clases que ya están calificadas. Las clases con estado 'cursado' o que tienen una nota no pueden ser suspendidas." },
+          { status: 400 },
         )
       }
     }

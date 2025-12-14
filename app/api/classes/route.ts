@@ -43,9 +43,13 @@ export async function POST(request: Request) {
       .from("students")
       .select("estado, nombre, apellido")
       .eq("id", clase.estudiante_id)
-      .single()
+      .maybeSingle()
 
     if (studentError) {
+      return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 })
+    }
+
+    if (!student) {
       return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 })
     }
 
@@ -71,8 +75,54 @@ export async function POST(request: Request) {
         )
       }
 
-      // Permitir crear la clase para cualquier estudiante
-      // (la política RLS validará que el instructor_id sea correcto)
+      // Validar conflictos de horario y horas excedidas antes de crear
+      const { checkClassConflict, checkHoursExceeded, checkInstructorAvailability } = await import("@/lib/services/class-service")
+      
+      // Verificar que la clase esté dentro del horario disponible del instructor
+      const availabilityResult = await checkInstructorAvailability(
+        instructorId,
+        clase.hora,
+        clase.duracion_minutos || 60
+      )
+      
+      if (!availabilityResult.available) {
+        return NextResponse.json(
+          { error: availabilityResult.message },
+          { status: 400 },
+        )
+      }
+      
+      // Verificar conflicto de horario (superposiciones)
+      const conflictResult = await checkClassConflict(
+        clase.fecha,
+        clase.hora,
+        clase.duracion_minutos || 60,
+        clase.estudiante_id,
+        instructorId
+      )
+      
+      if (conflictResult.conflict) {
+        return NextResponse.json(
+          { error: conflictResult.message },
+          { status: 400 },
+        )
+      }
+
+      // Verificar si excedería las horas requeridas o si ya está al 100%
+      if (clase.tipo && clase.duracion_minutos) {
+        const hoursResult = await checkHoursExceeded(
+          clase.estudiante_id,
+          clase.tipo,
+          clase.duracion_minutos
+        )
+        
+        if (hoursResult.exceeded) {
+          return NextResponse.json(
+            { error: hoursResult.message },
+            { status: 400 },
+          )
+        }
+      }
     }
 
     const newClass = await createClass(clase)

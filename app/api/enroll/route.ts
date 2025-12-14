@@ -5,7 +5,14 @@ import { updateStudentProgress } from "@/lib/services/progress-service"
 
 export async function POST(request: Request) {
   try {
-    const { estudiante_id, instructor_id, horas_practicas_requeridas, horas_teoricas_requeridas } = await request.json()
+    const { 
+      estudiante_id, 
+      instructor_id, 
+      horas_practicas_requeridas, 
+      horas_teoricas_requeridas,
+      fecha_clase_inicial,
+      hora_clase_inicial
+    } = await request.json()
 
     // Validaciones
     if (!estudiante_id || !instructor_id) {
@@ -14,6 +21,10 @@ export async function POST(request: Request) {
 
     if (horas_practicas_requeridas === undefined || horas_teoricas_requeridas === undefined) {
       return NextResponse.json({ error: "Las horas requeridas son obligatorias" }, { status: 400 })
+    }
+
+    if (!fecha_clase_inicial || !hora_clase_inicial) {
+      return NextResponse.json({ error: "La fecha y hora de la clase inicial son requeridas" }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -92,19 +103,15 @@ export async function POST(request: Request) {
     }
 
     // Crear una clase inicial para que el estudiante aparezca en el panel del instructor
-    // Esta clase será de tipo "teorica" y con fecha/hora futura para que aparezca como "agendada"
-    const fechaInicial = new Date()
-    fechaInicial.setDate(fechaInicial.getDate() + 1) // Mañana
-    const fechaInicialStr = fechaInicial.toISOString().split("T")[0]
-
+    // Esta clase será de tipo "teorica" y con fecha/hora seleccionada por el admin
     const claseInicial = {
       estudiante_id,
       instructor_id,
       tipo: "teorica",
-      fecha: fechaInicialStr,
-      hora: "09:00",
+      fecha: fecha_clase_inicial,
+      hora: hora_clase_inicial,
       duracion_minutos: 60,
-      observaciones: "Clase inicial de matrícula - Configurar según necesidad",
+      observaciones: "Clase introductoria",
       estado: "agendado",
     }
 

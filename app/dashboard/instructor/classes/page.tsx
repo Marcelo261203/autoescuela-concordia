@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Loader2, Calendar, BookOpen, User, Trash2, Edit, Clock } from "lucide-react"
+import { Loader2, Calendar, BookOpen, User, Trash2, Edit, Clock, AlertCircle, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import type { ClassWithDetails } from "@/lib/types"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,10 +76,50 @@ export default function InstructorClassesPage() {
       agendado: { label: "Agendado", className: "bg-yellow-100 text-yellow-800" },
       por_calificar: { label: "Por Calificar", className: "bg-orange-100 text-orange-800" },
       cursado: { label: "Cursado", className: "bg-green-100 text-green-800" },
+      suspendida: { label: "Suspendida", className: "bg-red-100 text-red-800" },
     }
     const estadoInfo = estados[estado || ""] || { label: "Sin estado", className: "bg-gray-100 text-gray-800" }
     return <Badge className={estadoInfo.className}>{estadoInfo.label}</Badge>
   }
+
+  // Verificar si una clase está calificada (no se puede editar ni eliminar)
+  const isClassGraded = (clase: ClassWithDetails) => {
+    return clase.estado === "cursado" || (clase.nota !== null && clase.nota !== undefined)
+  }
+
+  // Verificar si una clase está suspendida (no se puede editar ni eliminar)
+  const isClassSuspended = (clase: ClassWithDetails) => {
+    return clase.estado === "suspendida"
+  }
+
+  // Verificar si una clase puede ser editada o eliminada
+  const canEditOrDelete = (clase: ClassWithDetails) => {
+    return !isClassGraded(clase) && !isClassSuspended(clase)
+  }
+
+  // Verificar si una clase puede ser calificada (ya pasó su horario)
+  const canGradeClass = (clase: ClassWithDetails) => {
+    try {
+      const fechaHoraInicio = new Date(`${clase.fecha}T${clase.hora}`)
+      const fechaHoraFin = new Date(fechaHoraInicio.getTime() + (clase.duracion_minutos || 0) * 60 * 1000)
+      const ahora = new Date()
+      return ahora >= fechaHoraFin
+    } catch {
+      return false
+    }
+  }
+
+  // Obtener clases pendientes de calificar (excluyendo suspendidas)
+  const pendingClasses = classes.filter((clase) => {
+    // Excluir clases suspendidas
+    if (clase.estado === "suspendida") {
+      return false
+    }
+    
+    const estadoPendiente = clase.estado === "por_calificar"
+    const puedeCalificar = canGradeClass(clase) && !isClassGraded(clase)
+    return estadoPendiente || puedeCalificar
+  })
 
   const getTipoBadge = (tipo: string) => {
     return (
@@ -168,6 +209,22 @@ export default function InstructorClassesPage() {
         <p className="text-muted-foreground mt-2">Clases asignadas a ti</p>
       </div>
 
+      {/* Alerta de clases pendientes de calificar */}
+      {pendingClasses.length > 0 && (
+        <Link href="/dashboard/instructor/students" className="block">
+          <Alert className="bg-orange-50 border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertTitle className="text-orange-900 font-semibold">
+              Tienes {pendingClasses.length} clase{pendingClasses.length !== 1 ? "s" : ""} pendiente{pendingClasses.length !== 1 ? "s" : ""} de calificar
+            </AlertTitle>
+            <AlertDescription className="text-orange-800 flex items-center gap-2">
+              <span>Haz clic aquí para ir a calificar las clases pendientes</span>
+              <ArrowRight className="h-4 w-4" />
+            </AlertDescription>
+          </Alert>
+        </Link>
+      )}
+
       {classes.length === 0 ? (
         <Card>
           <CardContent className="py-12">
@@ -243,7 +300,18 @@ export default function InstructorClassesPage() {
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <Link href={`/dashboard/instructor/classes/${clase.id}`}>
-                            <Button variant="outline" size="sm">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              disabled={!canEditOrDelete(clase)}
+                              title={
+                                isClassGraded(clase) 
+                                  ? "No se pueden editar clases calificadas" 
+                                  : isClassSuspended(clase)
+                                  ? "No se pueden editar clases suspendidas"
+                                  : "Editar clase"
+                              }
+                            >
                               <Edit className="h-4 w-4 mr-1" />
                               Editar
                             </Button>
@@ -255,7 +323,15 @@ export default function InstructorClassesPage() {
                               setSelectedClassId(clase.id)
                               setDeleteDialogOpen(true)
                             }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={!canEditOrDelete(clase)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={
+                              isClassGraded(clase) 
+                                ? "No se pueden eliminar clases calificadas" 
+                                : isClassSuspended(clase)
+                                ? "No se pueden eliminar clases suspendidas"
+                                : "Suspender clase"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -270,17 +346,17 @@ export default function InstructorClassesPage() {
         </Card>
       )}
 
-      {/* Diálogo de confirmación de eliminación */}
+      {/* Diálogo de confirmación de suspensión */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
-          <AlertDialogTitle>¿Eliminar clase?</AlertDialogTitle>
+          <AlertDialogTitle>¿Suspender clase?</AlertDialogTitle>
           <AlertDialogDescription>
-            Esta acción no se puede deshacer. La clase será eliminada permanentemente del sistema.
+            Esta acción cambiará el estado de la clase a "Suspendida". La clase no se eliminará del sistema, pero quedará marcada como suspendida.
           </AlertDialogDescription>
           <div className="flex gap-2 justify-end">
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-red-600">
-              Eliminar
+              Suspender
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

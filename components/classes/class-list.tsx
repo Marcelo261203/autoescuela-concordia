@@ -36,6 +36,7 @@ const estadoColors: Record<string, string> = {
   agendado: "bg-blue-100 text-blue-800",
   por_calificar: "bg-yellow-100 text-yellow-800",
   cursado: "bg-green-100 text-green-800",
+  suspendida: "bg-red-100 text-red-800",
 }
 
 const ITEMS_PER_PAGE = 10
@@ -261,7 +262,9 @@ export function ClassList() {
                         ? "CURSADO"
                         : classItem.estado === "por_calificar"
                           ? "POR CALIFICAR"
-                          : "AGENDADO"}
+                          : classItem.estado === "suspendida"
+                            ? "SUSPENDIDA"
+                            : "AGENDADO"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

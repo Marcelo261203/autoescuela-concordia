@@ -9,15 +9,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Fecha y hora son requeridas" }, { status: 400 })
     }
 
-    // Verificar conflicto de fecha y hora
-    const conflictResult = await checkClassConflict(fecha, hora, estudiante_id, instructor_id, excludeId)
+    if (!duracion_minutos) {
+      return NextResponse.json({ error: "La duración es requerida para verificar conflictos" }, { status: 400 })
+    }
+
+    // Verificar conflicto de fecha y hora (incluyendo superposiciones)
+    const conflictResult = await checkClassConflict(fecha, hora, duracion_minutos, estudiante_id, instructor_id, excludeId)
     if (conflictResult.conflict) {
       return NextResponse.json(conflictResult)
     }
 
     // Verificar si la hora está dentro del horario disponible del instructor
     if (instructor_id) {
-      const availabilityResult = await checkInstructorAvailability(instructor_id, hora)
+      const availabilityResult = await checkInstructorAvailability(instructor_id, hora, duracion_minutos)
       if (!availabilityResult.available) {
         return NextResponse.json({
           conflict: true,
