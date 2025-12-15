@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { getInstructorByAuthUserId } from "@/lib/services/instructor-service"
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,20 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 401 })
+    }
+
+    // Verificar si el usuario es instructor y su estado
+    if (data.user) {
+      const instructor = await getInstructorByAuthUserId(data.user.id)
+      
+      if (instructor && instructor.estado === "inactivo") {
+        // Cerrar sesión si el instructor está inactivo
+        await supabase.auth.signOut()
+        return NextResponse.json(
+          { error: "Su cuenta de instructor está inactiva. Por favor, contacte al administrador." },
+          { status: 403 }
+        )
+      }
     }
 
     return NextResponse.json(data)

@@ -30,3 +30,4 @@ CHECK (estado IN ('agendado', 'por_calificar', 'cursado', 'suspendida'));
 -- Esto permite mantener un historial completo de todas las clases
 -- Las clases suspendidas no se cuentan en el progreso del estudiante
 
+

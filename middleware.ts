@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
 
   // Determinar el rol del usuario - SIEMPRE verificar si está autenticado
   let userRole: "admin" | "instructor" | null = null
+  let instructorEstado: "activo" | "inactivo" | null = null
   
   if (isAuthenticated && user && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -51,14 +52,25 @@ export async function middleware(request: NextRequest) {
       )
       const { data: instructor, error: instructorError } = await adminClient
         .from("instructors")
-        .select("id")
+        .select("id, estado")
         .eq("auth_user_id", user.id)
         .maybeSingle()
 
       if (instructorError && instructorError.code !== "PGRST116") {
         userRole = "admin"
+      } else if (instructor) {
+        userRole = "instructor"
+        instructorEstado = instructor.estado as "activo" | "inactivo"
+        
+        // Si el instructor está inactivo, cerrar sesión y redirigir al login
+        if (instructorEstado === "inactivo") {
+          await supabase.auth.signOut()
+          const loginUrl = new URL("/login", request.url)
+          loginUrl.searchParams.set("error", "inactivo")
+          return NextResponse.redirect(loginUrl)
+        }
       } else {
-        userRole = instructor ? "instructor" : "admin"
+        userRole = "admin"
       }
     } catch (error) {
       // Si hay error, asumir admin por defecto
