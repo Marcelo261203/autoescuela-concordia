@@ -152,6 +152,28 @@ export function Sidebar() {
   // Seleccionar items según el rol
   const menuItems = userRole === "instructor" ? instructorMenuItems : adminMenuItems
 
+  // No renderizar el sidebar hasta que se sepa el rol del usuario
+  if (!mounted || userRole === null) {
+    return (
+      <>
+        {/* Sidebar desktop - placeholder mientras carga */}
+        <aside className="hidden md:flex md:w-64 md:flex-col md:border-r md:bg-sidebar">
+          <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white">
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-slate-400 text-sm">Cargando...</div>
+            </div>
+          </div>
+        </aside>
+        {/* Sidebar mobile - placeholder mientras carga */}
+        <div className="md:hidden">
+          <Button variant="ghost" size="icon" className="md:hidden">
+            <Menu className="h-6 w-6" />
+          </Button>
+        </div>
+      </>
+    )
+  }
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white">
       <div className="flex-1 space-y-4 py-4 px-3">
@@ -230,7 +252,6 @@ export function Sidebar() {
       <aside className="hidden md:flex md:w-64 md:flex-col md:border-r md:bg-sidebar">{sidebarContent}</aside>
 
       {/* Sidebar mobile */}
-      {mounted && (
       <div className="md:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -243,14 +264,6 @@ export function Sidebar() {
           </SheetContent>
         </Sheet>
       </div>
-      )}
-      {!mounted && (
-        <div className="md:hidden">
-          <Button variant="ghost" size="icon" className="md:hidden">
-            <Menu className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
     </>
   )
 }

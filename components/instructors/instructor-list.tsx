@@ -41,7 +41,14 @@ const statusColors: Record<string, string> = {
   inactivo: "bg-gray-100 text-gray-800",
 }
 
+
 const ITEMS_PER_PAGE = 10
+
+// Función helper para formatear las categorías de licencias
+const formatLicenseTypes = (tiposLicencias: string | null | undefined): string[] => {
+  if (!tiposLicencias) return []
+  return tiposLicencias.split(",").map((t) => t.trim()).filter(Boolean)
+}
 
 export function InstructorList() {
   const router = useRouter()
@@ -209,6 +216,7 @@ export function InstructorList() {
               <TableHead className="font-semibold">Email</TableHead>
               <TableHead className="font-semibold">Teléfono</TableHead>
               <TableHead className="font-semibold">Especialidad</TableHead>
+              <TableHead className="font-semibold">Categorías</TableHead>
               <TableHead className="font-semibold">Estado</TableHead>
               <TableHead className="text-right font-semibold">Acciones</TableHead>
             </TableRow>
@@ -216,18 +224,20 @@ export function InstructorList() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Cargando instructores...
                 </TableCell>
               </TableRow>
             ) : filteredInstructors.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No se encontraron instructores
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInstructors.map((instructor) => (
+              filteredInstructors.map((instructor) => {
+                const licenseTypes = formatLicenseTypes(instructor.tipos_licencias)
+                return (
                 <TableRow key={instructor.id} className="hover:bg-slate-50 transition-colors">
                   <TableCell className="font-medium">
                     {instructor.nombre} {instructor.apellido}
@@ -235,6 +245,23 @@ export function InstructorList() {
                   <TableCell className="text-sm">{instructor.email}</TableCell>
                   <TableCell className="text-sm">{instructor.telefono}</TableCell>
                   <TableCell className="text-sm">{instructor.especialidad}</TableCell>
+                  <TableCell>
+                    {licenseTypes.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {licenseTypes.map((tipo) => (
+                          <Badge
+                            key={tipo}
+                            className="bg-gray-100 text-gray-800"
+                            variant="outline"
+                          >
+                            {tipo}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Sin categorías</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       <Badge className={statusColors[instructor.estado]}>
@@ -282,7 +309,8 @@ export function InstructorList() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+              })
             )}
           </TableBody>
         </Table>
