@@ -5,6 +5,7 @@ import {
   createInstructorAuthUser,
   updateInstructorPassword,
 } from "@/lib/services/instructor-service"
+import { getStudentsByInstructor } from "@/lib/services/student-service"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +29,20 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     // Obtener el instructor actual para verificar si tiene auth_user_id
     const currentInstructor = await getInstructorById(id)
+
+    // Validar que no se pueda cambiar el estado a "inactivo" si tiene estudiantes no graduados
+    if (updates.estado === "inactivo") {
+      const studentsNotGraduated = await getStudentsByInstructor(id, true)
+      
+      if (studentsNotGraduated.length > 0) {
+        return NextResponse.json(
+          { 
+            error: `No se puede cambiar el estado del instructor a inactivo porque tiene ${studentsNotGraduated.length} estudiante${studentsNotGraduated.length > 1 ? "s" : ""} no graduado${studentsNotGraduated.length > 1 ? "s" : ""}. Por favor, asegúrese de que todos los estudiantes estén graduados antes de desactivar al instructor.` 
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     // Si se proporciona contraseña
     if (password) {
