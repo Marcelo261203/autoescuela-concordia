@@ -268,9 +268,9 @@ export default function InstructorDashboardPage() {
                     <span className="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
                       {clase.tipo === "practica" ? "Práctica" : "Teórica"}
                     </span>
-                    <Link href={`/dashboard/classes/${clase.id}`}>
+                    <Link href={`/dashboard/instructor/classes/${clase.id}/view`}>
                       <Button variant="outline" size="sm">
-                        Ver
+                        Ver Detalles
                       </Button>
                     </Link>
                   </div>
@@ -313,6 +313,7 @@ export default function InstructorDashboardPage() {
     </div>
   )
 }
+
 
 
 

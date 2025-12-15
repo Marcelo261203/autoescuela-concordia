@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import type { StudentProgress } from "@/lib/types"
+import { formatMinutesToHours } from "@/lib/utils/format-hours"
 
 interface StudentProgressProps {
   studentId: string
@@ -75,7 +76,7 @@ export function StudentProgressCard({ studentId }: StudentProgressProps) {
               Para ver el progreso, primero debes configurar los requisitos del curso en la sección "Requisitos del Curso".
             </p>
             <p className="text-sm text-muted-foreground">
-              Horas realizadas: {Math.round((progress.clases_practicas_realizadas + progress.clases_teoricas_realizadas) / 60 * 10) / 10}h
+              Horas realizadas: {formatMinutesToHours(progress.clases_practicas_realizadas + progress.clases_teoricas_realizadas)}
             </p>
           </div>
         </CardContent>
@@ -97,11 +98,11 @@ export function StudentProgressCard({ studentId }: StudentProgressProps) {
   const horasPracticasRequeridas = horasPracticasRequeridasBase + horasPenalizacionPracticas
   const horasTeoricasRequeridas = horasTeoricasRequeridasBase + horasPenalizacionTeoricas
 
-  // Convertir minutos a horas para mostrar
-  const horasPracticasRealizadas = Math.round((progress.clases_practicas_realizadas / 60) * 10) / 10
-  const horasTeoricasRealizadas = Math.round((progress.clases_teoricas_realizadas / 60) * 10) / 10
-  const horasPracticasRequeridasDisplay = Math.round((horasPracticasRequeridas / 60) * 10) / 10
-  const horasTeoricasRequeridasDisplay = Math.round((horasTeoricasRequeridas / 60) * 10) / 10
+  // Formatear minutos a formato legible (Xh Ymin)
+  const horasPracticasRealizadasDisplay = formatMinutesToHours(progress.clases_practicas_realizadas)
+  const horasTeoricasRealizadasDisplay = formatMinutesToHours(progress.clases_teoricas_realizadas)
+  const horasPracticasRequeridasDisplay = formatMinutesToHours(horasPracticasRequeridas)
+  const horasTeoricasRequeridasDisplay = formatMinutesToHours(horasTeoricasRequeridas)
 
   const practicasPorcentaje =
     horasPracticasRequeridas > 0
@@ -138,10 +139,10 @@ export function StudentProgressCard({ studentId }: StudentProgressProps) {
           <div className="flex justify-between text-sm">
             <span className="font-medium">Horas Prácticas</span>
             <span className="text-muted-foreground">
-              {horasPracticasRealizadas}h / {horasPracticasRequeridasDisplay}h
+              {horasPracticasRealizadasDisplay} / {horasPracticasRequeridasDisplay}
               {horasPenalizacionPracticas > 0 && (
                 <span className="text-red-600 ml-1">
-                  (+{Math.round((horasPenalizacionPracticas / 60) * 10) / 10}h penalización)
+                  (+{formatMinutesToHours(horasPenalizacionPracticas)} penalización)
                 </span>
               )}
             </span>
@@ -160,10 +161,10 @@ export function StudentProgressCard({ studentId }: StudentProgressProps) {
           <div className="flex justify-between text-sm">
             <span className="font-medium">Horas Teóricas</span>
             <span className="text-muted-foreground">
-              {horasTeoricasRealizadas}h / {horasTeoricasRequeridasDisplay}h
+              {horasTeoricasRealizadasDisplay} / {horasTeoricasRequeridasDisplay}
               {horasPenalizacionTeoricas > 0 && (
                 <span className="text-red-600 ml-1">
-                  (+{Math.round((horasPenalizacionTeoricas / 60) * 10) / 10}h penalización)
+                  (+{formatMinutesToHours(horasPenalizacionTeoricas)} penalización)
                 </span>
               )}
             </span>
@@ -209,13 +210,13 @@ export function StudentProgressCard({ studentId }: StudentProgressProps) {
             <div>
               <p className="text-muted-foreground">Total Horas Realizadas</p>
               <p className="text-lg font-semibold">
-                {Math.round(((horasPracticasRealizadas + horasTeoricasRealizadas) * 10) / 10)}h
+                {formatMinutesToHours(progress.clases_practicas_realizadas + progress.clases_teoricas_realizadas)}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">Total Horas Requeridas</p>
               <p className="text-lg font-semibold">
-                {Math.round(((horasPracticasRequeridas + horasTeoricasRequeridas) / 60) * 10) / 10}h
+                {formatMinutesToHours(horasPracticasRequeridas + horasTeoricasRequeridas)}
               </p>
             </div>
           </div>

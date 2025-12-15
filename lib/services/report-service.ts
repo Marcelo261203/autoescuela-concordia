@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function getActiveStudentsReport() {
   const supabase = await createClient()
@@ -57,7 +58,8 @@ export async function getClassesReport(filters?: { dateFrom?: string; dateTo?: s
 }
 
 export async function getDashboardSummary() {
-  const supabase = await createClient()
+  // Usar adminClient para evitar problemas de RLS en el dashboard del admin
+  const supabase = createAdminClient()
 
   // Obtener todos los estudiantes para contar por estado
   const { data: allStudents, error: studentsError } = await supabase

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle, Loader2 } from "lucide-react"
+import { formatMinutesToHours } from "@/lib/utils/format-hours"
 import type { StudentProgress } from "@/lib/types"
 
 interface AdditionalHoursFormProps {
@@ -185,7 +186,7 @@ export function AdditionalHoursForm({
             </p>
             {tieneHorasPracticas && (
               <p className="text-xs text-blue-600 font-medium">
-                Actualmente configurado: {((progress?.horas_penalizacion_practicas || 0) / 60).toFixed(1)}h
+                Actualmente configurado: {formatMinutesToHours(progress?.horas_penalizacion_practicas || 0)}
               </p>
             )}
           </div>
@@ -221,7 +222,7 @@ export function AdditionalHoursForm({
             </p>
             {tieneHorasTeoricas && (
               <p className="text-xs text-blue-600 font-medium">
-                Actualmente configurado: {((progress?.horas_penalizacion_teoricas || 0) / 60).toFixed(1)}h
+                Actualmente configurado: {formatMinutesToHours(progress?.horas_penalizacion_teoricas || 0)}
               </p>
             )}
           </div>

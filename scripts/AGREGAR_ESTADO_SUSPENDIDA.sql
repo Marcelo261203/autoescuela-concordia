@@ -31,3 +31,4 @@ CHECK (estado IN ('agendado', 'por_calificar', 'cursado', 'suspendida'));
 -- Las clases suspendidas no se cuentan en el progreso del estudiante
 
 
+

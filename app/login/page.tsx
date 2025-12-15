@@ -45,7 +45,7 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || "Email o contraseña incorrectos")
+        setError(data.error || "Email o contraseña incorrectos. Por favor, verifique sus credenciales e intente nuevamente.")
         setIsLoading(false)
         return
       }

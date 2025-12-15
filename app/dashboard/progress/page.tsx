@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Eye } from "lucide-react"
 import type { Student } from "@/lib/types"
 import type { StudentProgress } from "@/lib/types"
+import { formatMinutesToHours } from "@/lib/utils/format-hours"
 
 const statusColors: Record<string, string> = {
   activo: "bg-green-100 text-green-800",
@@ -94,10 +95,6 @@ export default function ProgressPage() {
   }
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
-
-  const formatHours = (minutes: number) => {
-    return Math.round((minutes / 60) * 10) / 10
-  }
 
   const getProgressPercentage = (progress: StudentProgress | null | undefined) => {
     if (!progress) return 0
@@ -177,12 +174,14 @@ export default function ProgressPage() {
                 const horasPracticasRequeridas = horasPracticasRequeridasBase + horasPenalizacionPracticas
                 const horasTeoricasRequeridas = horasTeoricasRequeridasBase + horasPenalizacionTeoricas
 
-                const horasPracticasRealizadas = progress
-                  ? formatHours(progress.clases_practicas_realizadas || 0)
-                  : 0
-                const horasTeoricasRealizadas = progress ? formatHours(progress.clases_teoricas_realizadas || 0) : 0
-                const horasPracticasRequeridasDisplay = formatHours(horasPracticasRequeridas)
-                const horasTeoricasRequeridasDisplay = formatHours(horasTeoricasRequeridas)
+                const horasPracticasRealizadasDisplay = progress
+                  ? formatMinutesToHours(progress.clases_practicas_realizadas || 0)
+                  : "0min"
+                const horasTeoricasRealizadasDisplay = progress 
+                  ? formatMinutesToHours(progress.clases_teoricas_realizadas || 0) 
+                  : "0min"
+                const horasPracticasRequeridasDisplay = formatMinutesToHours(horasPracticasRequeridas)
+                const horasTeoricasRequeridasDisplay = formatMinutesToHours(horasTeoricasRequeridas)
 
                 const practicasPorcentaje =
                   horasPracticasRequeridas > 0
@@ -212,7 +211,7 @@ export default function ProgressPage() {
                       {progress ? (
                         <div className="space-y-1">
                           <div className="text-sm font-medium">
-                            {horasPracticasRealizadas}h / {horasPracticasRequeridasDisplay}h
+                            {horasPracticasRealizadasDisplay} / {horasPracticasRequeridasDisplay}
                           </div>
                           <Progress value={Math.min(practicasPorcentaje, 100)} className="h-2" />
                           <div className="text-xs text-muted-foreground">{practicasPorcentaje}%</div>
@@ -225,7 +224,7 @@ export default function ProgressPage() {
                       {progress ? (
                         <div className="space-y-1">
                           <div className="text-sm font-medium">
-                            {horasTeoricasRealizadas}h / {horasTeoricasRequeridasDisplay}h
+                            {horasTeoricasRealizadasDisplay} / {horasTeoricasRequeridasDisplay}
                           </div>
                           <Progress value={Math.min(teoricasPorcentaje, 100)} className="h-2" />
                           <div className="text-xs text-muted-foreground">{teoricasPorcentaje}%</div>

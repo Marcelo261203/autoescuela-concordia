@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import type { Class, ClassWithDetails } from "@/lib/types"
+import { formatMinutesToHours } from "@/lib/utils/format-hours"
 
 /**
  * Actualiza automáticamente el estado de clases que ya pasaron su horario
@@ -443,43 +444,43 @@ export async function checkHoursExceeded(
   if (tipo === "practica") {
     // Verificar si ya está al 100% o más
     if (horasPracticasRequeridas > 0 && horasPracticasActuales >= horasPracticasRequeridas) {
-      const horasActuales = Math.round((horasPracticasActuales / 60) * 10) / 10
-      const horasRequeridas = Math.round((horasPracticasRequeridas / 60) * 10) / 10
+      const horasActuales = formatMinutesToHours(horasPracticasActuales)
+      const horasRequeridas = formatMinutesToHours(horasPracticasRequeridas)
       return {
         exceeded: true,
-        message: `El estudiante ya completó el 100% de sus ${horasRequeridas}h de clases prácticas requeridas (tiene ${horasActuales}h). No se pueden crear más clases prácticas.`,
+        message: `El estudiante ya completó el 100% de sus ${horasRequeridas} de clases prácticas requeridas (tiene ${horasActuales}). No se pueden crear más clases prácticas.`,
       }
     }
     
     const horasPracticasNuevas = horasPracticasActuales + duracion_minutos
     if (horasPracticasNuevas > horasPracticasRequeridas) {
-      const horasActuales = Math.round((horasPracticasActuales / 60) * 10) / 10
-      const horasRequeridas = Math.round((horasPracticasRequeridas / 60) * 10) / 10
-      const horasNuevas = Math.round((horasPracticasNuevas / 60) * 10) / 10
+      const horasActuales = formatMinutesToHours(horasPracticasActuales)
+      const horasRequeridas = formatMinutesToHours(horasPracticasRequeridas)
+      const horasNuevas = formatMinutesToHours(horasPracticasNuevas)
       return {
         exceeded: true,
-        message: `El estudiante ya completó sus ${horasRequeridas}h de clases prácticas requeridas (tiene ${horasActuales}h). Agregar esta clase resultaría en ${horasNuevas}h, excediendo el límite.`,
+        message: `El estudiante ya completó sus ${horasRequeridas} de clases prácticas requeridas (tiene ${horasActuales}). Agregar esta clase resultaría en ${horasNuevas}, excediendo el límite.`,
       }
     }
   } else if (tipo === "teorica") {
     // Verificar si ya está al 100% o más
     if (horasTeoricasRequeridas > 0 && horasTeoricasActuales >= horasTeoricasRequeridas) {
-      const horasActuales = Math.round((horasTeoricasActuales / 60) * 10) / 10
-      const horasRequeridas = Math.round((horasTeoricasRequeridas / 60) * 10) / 10
+      const horasActuales = formatMinutesToHours(horasTeoricasActuales)
+      const horasRequeridas = formatMinutesToHours(horasTeoricasRequeridas)
       return {
         exceeded: true,
-        message: `El estudiante ya completó el 100% de sus ${horasRequeridas}h de clases teóricas requeridas (tiene ${horasActuales}h). No se pueden crear más clases teóricas.`,
+        message: `El estudiante ya completó el 100% de sus ${horasRequeridas} de clases teóricas requeridas (tiene ${horasActuales}). No se pueden crear más clases teóricas.`,
       }
     }
     
     const horasTeoricasNuevas = horasTeoricasActuales + duracion_minutos
     if (horasTeoricasNuevas > horasTeoricasRequeridas) {
-      const horasActuales = Math.round((horasTeoricasActuales / 60) * 10) / 10
-      const horasRequeridas = Math.round((horasTeoricasRequeridas / 60) * 10) / 10
-      const horasNuevas = Math.round((horasTeoricasNuevas / 60) * 10) / 10
+      const horasActuales = formatMinutesToHours(horasTeoricasActuales)
+      const horasRequeridas = formatMinutesToHours(horasTeoricasRequeridas)
+      const horasNuevas = formatMinutesToHours(horasTeoricasNuevas)
       return {
         exceeded: true,
-        message: `El estudiante ya completó sus ${horasRequeridas}h de clases teóricas requeridas (tiene ${horasActuales}h). Agregar esta clase resultaría en ${horasNuevas}h, excediendo el límite.`,
+        message: `El estudiante ya completó sus ${horasRequeridas} de clases teóricas requeridas (tiene ${horasActuales}). Agregar esta clase resultaría en ${horasNuevas}, excediendo el límite.`,
       }
     }
   }

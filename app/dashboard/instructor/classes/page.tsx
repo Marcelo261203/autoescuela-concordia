@@ -211,14 +211,21 @@ export default function InstructorClassesPage() {
 
       {/* Alerta de clases pendientes de calificar */}
       {pendingClasses.length > 0 && (
-        <Link href="/dashboard/instructor/students" className="block">
+        <Link 
+          href={`/dashboard/instructor/classes/${pendingClasses[0].id}`} 
+          className="block"
+        >
           <Alert className="bg-orange-50 border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <AlertTitle className="text-orange-900 font-semibold">
               Tienes {pendingClasses.length} clase{pendingClasses.length !== 1 ? "s" : ""} pendiente{pendingClasses.length !== 1 ? "s" : ""} de calificar
             </AlertTitle>
             <AlertDescription className="text-orange-800 flex items-center gap-2">
-              <span>Haz clic aquí para ir a calificar las clases pendientes</span>
+              <span>
+                {pendingClasses.length === 1 
+                  ? "Haz clic aquí para calificar la clase pendiente"
+                  : `Haz clic aquí para calificar la primera clase pendiente (${pendingClasses[0].estudiante ? `${pendingClasses[0].estudiante.nombre} ${pendingClasses[0].estudiante.apellido}` : "Clase"} - ${formatDate(pendingClasses[0].fecha)})`}
+              </span>
               <ArrowRight className="h-4 w-4" />
             </AlertDescription>
           </Alert>

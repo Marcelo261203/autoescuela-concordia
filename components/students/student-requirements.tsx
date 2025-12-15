@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle, Settings, Lock, BookOpen } from "lucide-react"
 import type { StudentProgress } from "@/lib/types"
+import { formatMinutesToHours } from "@/lib/utils/format-hours"
 
 interface StudentRequirementsProps {
   studentId: string
@@ -196,22 +197,20 @@ export function StudentRequirements({ studentId, progress, onUpdate }: StudentRe
               <span className="text-muted-foreground">Horas Prácticas Requeridas:</span>
               <span className="font-semibold">
                 {progress?.horas_practicas_requeridas
-                  ? Math.round((progress.horas_practicas_requeridas / 60) * 10) / 10
+                  ? formatMinutesToHours(progress.horas_practicas_requeridas)
                   : progress?.clases_practicas_requeridas
-                    ? Math.round((progress.clases_practicas_requeridas / 60) * 10) / 10
+                    ? formatMinutesToHours(progress.clases_practicas_requeridas)
                     : "No configurado"}
-                {progress?.horas_practicas_requeridas || progress?.clases_practicas_requeridas ? "h" : ""}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Horas Teóricas Requeridas:</span>
               <span className="font-semibold">
                 {progress?.horas_teoricas_requeridas
-                  ? Math.round((progress.horas_teoricas_requeridas / 60) * 10) / 10
+                  ? formatMinutesToHours(progress.horas_teoricas_requeridas)
                   : progress?.clases_teoricas_requeridas
-                    ? Math.round((progress.clases_teoricas_requeridas / 60) * 10) / 10
+                    ? formatMinutesToHours(progress.clases_teoricas_requeridas)
                     : "No configurado"}
-                {progress?.horas_teoricas_requeridas || progress?.clases_teoricas_requeridas ? "h" : ""}
               </span>
             </div>
             <div className="flex justify-between">
