@@ -1,0 +1,221 @@
+@startuml Secuencia - Crear Estudiante
+actor Admin
+participant Frontend
+boundary "API Route /students" as API_Student
+control StudentService
+database Supabase
+
+Admin -> Frontend: Completa formulario de estudiante
+Frontend -> Frontend: Valida datos (CI, email, etc.)
+Frontend -> API_Student: POST {studentData}
+API_Student -> StudentService: checkStudentExists(ci, email)
+StudentService -> Supabase: SELECT * FROM students WHERE ci = ? OR email = ?
+Supabase --> StudentService: existingStudent | null
+
+alt Si ya existe estudiante con CI o email
+    StudentService --> API_Student: Error "Estudiante ya existe"
+    API_Student --> Frontend: 400 Error
+else Si no existe
+    API_Student -> StudentService: createStudent(studentData)
+    StudentService -> Supabase: INSERT INTO students VALUES (...)
+    Supabase --> StudentService: newStudent
+    StudentService --> API_Student: Student
+    API_Student --> Frontend: 201 Created {student}
+    Frontend -> Frontend: Muestra mensaje de éxito y redirige
+end
+@enduml
+
+@startuml Secuencia - Crear Instructor
+actor Admin
+participant Frontend
+boundary "API Route /instructors" as API_Instructor
+control InstructorService
+database Supabase
+database "Supabase Auth" as SupaAuth
+
+Admin -> Frontend: Completa formulario de instructor
+Frontend -> Frontend: Valida datos
+Frontend -> API_Instructor: POST {instructorData, password}
+API_Instructor -> InstructorService: checkInstructorExists(email)
+InstructorService -> Supabase: SELECT * FROM instructors WHERE email = ?
+Supabase --> InstructorService: existingInstructor | null
+
+alt Si ya existe instructor con email
+    InstructorService --> API_Instructor: Error "Email ya registrado"
+    API_Instructor --> Frontend: 400 Error
+else Si no existe
+    API_Instructor -> InstructorService: createInstructorAuthUser(email, password)
+    InstructorService -> SupaAuth: auth.admin.createUser({email, password})
+    SupaAuth --> InstructorService: {user: {id}}
+    InstructorService --> API_Instructor: auth_user_id
+    
+    API_Instructor -> InstructorService: createInstructor({...instructorData, auth_user_id})
+    InstructorService -> Supabase: INSERT INTO instructors VALUES (...)
+    Supabase --> InstructorService: newInstructor
+    InstructorService --> API_Instructor: Instructor
+    API_Instructor --> Frontend: 201 Created {instructor}
+    Frontend -> Frontend: Muestra mensaje de éxito
+end
+@enduml
+
+@startuml Secuencia - Calificar Examen Final
+actor "Admin/Instructor" as Usuario
+participant Frontend
+boundary "API Route /progress/[id]/exam" as API_Exam
+control ProgressService
+database Supabase
+
+Usuario -> Frontend: Ingresa nota final y marca aprobado/reprobado
+Frontend -> Frontend: Valida nota (0-100)
+Frontend -> API_Exam: PUT {nota_final, aprobado}
+API_Exam -> ProgressService: getStudentProgress(studentId)
+ProgressService -> Supabase: SELECT * FROM student_progress WHERE estudiante_id = ?
+Supabase --> ProgressService: progress
+ProgressService --> API_Exam: progress
+
+API_Exam -> API_Exam: Verifica requisitos
+note right: - 100% horas completadas\n- Promedio teóricas >= 51\n- Promedio prácticas >= 51
+
+alt Si no cumple requisitos
+    API_Exam --> Frontend: 400 Error "No cumple requisitos para examen"
+else Si cumple requisitos
+    API_Exam -> Supabase: UPDATE student_progress SET nota_final = ?, aprobado = ? WHERE estudiante_id = ?
+    Supabase --> API_Exam: updatedProgress
+    
+    API_Exam -> ProgressService: updateStudentProgress(studentId)
+    ProgressService -> Supabase: SELECT * FROM classes WHERE estudiante_id = ? AND estado != 'suspendida'
+    Supabase --> ProgressService: classes[]
+    ProgressService -> ProgressService: Recalcula progreso
+    ProgressService -> ProgressService: Verifica si puede graduar
+    
+    alt Si puede graduar (100% horas + examen aprobado)
+        ProgressService -> Supabase: UPDATE students SET estado = 'graduado' WHERE id = ?
+        Supabase --> ProgressService: success
+    end
+    
+    ProgressService --> API_Exam: updatedProgress
+    API_Exam --> Frontend: 200 OK {progress}
+    Frontend -> Frontend: Actualiza vista de progreso y estado
+end
+@enduml
+
+@startuml Secuencia - Agregar Horas de Penalización
+actor Instructor
+participant Frontend
+boundary "API Route /progress/[id]/additional-hours" as API_Hours
+control ProgressService
+database Supabase
+
+Instructor -> Frontend: Ingresa horas adicionales (formato: "1h 30min")
+Frontend -> Frontend: Convierte a minutos
+Frontend -> API_Hours: PUT {horas_penalizacion_practicas, horas_penalizacion_teoricas}
+API_Hours -> ProgressService: getStudentProgress(studentId)
+ProgressService -> Supabase: SELECT * FROM student_progress WHERE estudiante_id = ?
+Supabase --> ProgressService: progress
+ProgressService --> API_Hours: progress
+
+API_Hours -> API_Hours: Verifica si examen ya está calificado
+note right: nota_final !== null
+
+alt Si examen ya está calificado
+    API_Hours --> Frontend: 400 Error "No se pueden editar horas después de calificar examen"
+else Si examen no está calificado
+    API_Hours -> Supabase: UPDATE student_progress SET horas_penalizacion_practicas = ?, horas_penalizacion_teoricas = ? WHERE estudiante_id = ?
+    Supabase --> API_Hours: updatedProgress
+    
+    API_Hours -> ProgressService: updateStudentProgress(studentId)
+    ProgressService -> Supabase: SELECT * FROM classes WHERE estudiante_id = ?
+    Supabase --> ProgressService: classes[]
+    ProgressService -> ProgressService: Recalcula horas requeridas (base + penalización)
+    ProgressService -> ProgressService: Recalcula porcentaje de avance
+    ProgressService -> Supabase: UPSERT student_progress
+    Supabase --> ProgressService: updatedProgress
+    ProgressService --> API_Hours: updatedProgress
+    API_Hours --> Frontend: 200 OK {progress}
+    Frontend -> Frontend: Actualiza vista con nuevas horas requeridas
+end
+@enduml
+
+@startuml Secuencia - Actualizar Perfil de Instructor
+actor Instructor
+participant Frontend
+boundary "API Route /instructor/profile" as API_Profile
+control InstructorService
+database Supabase
+
+Instructor -> Frontend: Edita información personal y disponibilidad
+Frontend -> Frontend: Valida datos (horario, etc.)
+Frontend -> API_Profile: PUT {updates}
+API_Profile -> API_Profile: Obtiene instructor_id del usuario autenticado
+API_Profile -> InstructorService: getInstructorByAuthUserId(authUserId)
+InstructorService -> Supabase: SELECT * FROM instructors WHERE auth_user_id = ?
+Supabase --> InstructorService: instructor
+InstructorService --> API_Profile: instructor
+
+alt Si no se encuentra instructor
+    API_Profile --> Frontend: 404 Error "Instructor no encontrado"
+else Si se encuentra
+    API_Profile -> InstructorService: updateInstructor(instructor.id, updates)
+    InstructorService -> Supabase: UPDATE instructors SET ... WHERE id = ?
+    Supabase --> InstructorService: updatedInstructor
+    InstructorService --> API_Profile: Instructor
+    API_Profile --> Frontend: 200 OK {instructor}
+    Frontend -> Frontend: Muestra mensaje de éxito y actualiza vista
+end
+@enduml
+
+@startuml Secuencia - Obtener Dashboard (Admin)
+actor Admin
+participant Frontend
+boundary "API Route /dashboard/summary" as API_Dashboard
+control ReportService
+database Supabase
+
+Admin -> Frontend: Accede a dashboard
+Frontend -> API_Dashboard: GET /api/dashboard/summary
+API_Dashboard -> ReportService: getDashboardSummary()
+ReportService -> Supabase: SELECT * FROM students
+Supabase --> ReportService: allStudents[]
+ReportService -> ReportService: Cuenta estudiantes por estado
+ReportService -> Supabase: SELECT COUNT(*) FROM classes
+Supabase --> ReportService: totalClases
+ReportService -> Supabase: SELECT * FROM classes
+Supabase --> ReportService: allClasses[]
+ReportService -> ReportService: Calcula estadísticas de clases
+ReportService -> Supabase: SELECT * FROM student_progress
+Supabase --> ReportService: allProgress[]
+ReportService -> ReportService: Calcula estadísticas de progreso
+ReportService -> ReportService: Calcula tendencias (últimos 6 meses)
+ReportService --> API_Dashboard: DashboardSummary
+API_Dashboard --> Frontend: 200 OK {summary}
+Frontend -> Frontend: Renderiza gráficos y estadísticas
+@enduml
+
+@startuml Secuencia - Eliminar Estudiante (con validación)
+actor Admin
+participant Frontend
+boundary "API Route /students/[id]" as API_Student
+control StudentService
+database Supabase
+
+Admin -> Frontend: Confirma eliminación de estudiante
+Frontend -> API_Student: DELETE /api/students/[id]
+API_Student -> StudentService: checkStudentHasClasses(studentId)
+StudentService -> Supabase: SELECT COUNT(*) FROM classes WHERE estudiante_id = ?
+Supabase --> StudentService: count
+
+alt Si tiene clases asociadas
+    StudentService --> API_Student: Error "No se puede eliminar, tiene clases asociadas"
+    API_Student --> Frontend: 400 Error
+else Si no tiene clases
+    API_Student -> StudentService: deleteStudent(id)
+    StudentService -> Supabase: DELETE FROM students WHERE id = ?
+    Supabase --> StudentService: success
+    StudentService -> Supabase: DELETE FROM student_progress WHERE estudiante_id = ?
+    Supabase --> StudentService: success
+    StudentService --> API_Student: success
+    API_Student --> Frontend: 200 OK
+    Frontend -> Frontend: Muestra mensaje de éxito y actualiza lista
+end
+@enduml
+

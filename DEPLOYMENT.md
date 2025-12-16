@@ -1,41 +1,64 @@
 # Guía de Despliegue
 
+> 📚 **Para una guía detallada paso a paso, consulta [GUIA_DESPLIEGUE_VERCEL.md](./GUIA_DESPLIEGUE_VERCEL.md)**
+
 ## Despliegue en Vercel (Recomendado)
 
 ### Pasos previos
-1. Tienes que haber completado el SETUP.md
-2. Tu repositorio debe estar en GitHub
+1. ✅ Tienes que haber completado el SETUP.md
+2. ✅ Tu repositorio debe estar en GitHub
+3. ✅ Tienes las credenciales de Supabase listas
 
-### Pasos de despliegue
+### Pasos rápidos de despliegue
 
 1. **Ir a Vercel**
    - Abre https://vercel.com
-   - Inicia sesión o crea una cuenta
+   - Inicia sesión o crea una cuenta (con GitHub recomendado)
 
 2. **Conectar repositorio**
-   - Haz clic en "New Project"
+   - Haz clic en "Add New..." → "Project"
    - Selecciona "Import Git Repository"
+   - Conecta tu cuenta de GitHub si es necesario
    - Busca y selecciona tu repositorio
 
-3. **Configurar variables de entorno**
-   - En "Environment Variables" añade:
+3. **Configurar variables de entorno** ⚠️ CRÍTICO
+   - En "Environment Variables" añade estas 3 variables:
    \`\`\`
-   NEXT_PUBLIC_SUPABASE_URL=tu_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
-   POSTGRES_URL=tu_postgres_url
-   SUPABASE_JWT_SECRET=tu_jwt_secret
-   POSTGRES_URL_NON_POOLING=tu_postgres_url_non_pooling
+   NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
    \`\`\`
+   - **Importante**: Marca todas las variables para Production, Preview y Development
+   - Obtén estos valores en: Supabase Dashboard > Settings > API
 
 4. **Desplegar**
    - Haz clic en "Deploy"
-   - Vercel construirá y desplegará automáticamente
-   - Recibirás una URL pública
+   - Vercel construirá y desplegará automáticamente (2-5 minutos)
+   - Recibirás una URL pública: `https://tu-proyecto.vercel.app`
 
 5. **Verificación**
    - Abre la URL proporcionada
    - Prueba login y todas las funciones
+   - Verifica que no haya errores en los logs
+
+### Variables de entorno requeridas
+
+Solo necesitas estas 3 variables (las demás mencionadas anteriormente no son necesarias):
+
+- `NEXT_PUBLIC_SUPABASE_URL` - URL de tu proyecto Supabase
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Clave pública anónima
+- `SUPABASE_SERVICE_ROLE_KEY` - Clave de servicio (secret)
+
+### Configurar Supabase para producción
+
+Después del despliegue, actualiza las URLs de redirección en Supabase:
+
+1. Ve a **Supabase Dashboard** → **Authentication** → **URL Configuration**
+2. Agrega tu URL de Vercel:
+   ```
+   https://tu-proyecto.vercel.app/**
+   https://tu-proyecto.vercel.app/dashboard
+   ```
 
 ## Despliegue en Railway
 

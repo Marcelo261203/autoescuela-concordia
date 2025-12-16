@@ -1,0 +1,361 @@
+' ============================================
+' DIAGRAMAS DE ACTIVIDADES - SISTEMA AUTOESCUELA
+' ============================================
+' Incluye: Login, Crear Clase, Calificar Clase (corregidos)
+' + Nuevos: Calificar Examen, Agregar Horas, Crear Estudiante, Crear Instructor
+' ============================================
+
+' ============================================
+' 1. LOGIN DE USUARIO (CORREGIDO)
+' ============================================
+@startuml Actividad - Login de Usuario
+start
+:Usuario ingresa email y password;
+
+if (Frontend valida formato?) then (No)
+  :Muestra error de formato;
+  stop
+else (Sí)
+  :Envía POST a /api/auth/login;
+  :Supabase Auth valida credenciales;
+  
+  if (Credenciales válidas?) then (No)
+    :Muestra "Email o contraseña incorrectos";
+    stop
+  else (Sí)
+    :Verifica vínculo con instructor;
+    
+    if (Es instructor?) then (No)
+      :Asigna rol = admin;
+      :Redirige a /dashboard;
+      stop
+    else (Sí)
+      :Verifica estado del instructor;
+      
+      if (Estado = inactivo?) then (Sí)
+        :Cierra sesión;
+        :Muestra "Cuenta inactiva";
+        stop
+      else (No)
+        :Asigna rol = instructor;
+        :Redirige a /dashboard/instructor;
+        stop
+      endif
+    endif
+  endif
+endif
+@enduml
+
+' ============================================
+' 2. CREAR CLASE (CORREGIDO)
+' ============================================
+@startuml Actividad - Crear Clase
+start
+:Usuario completa formulario de clase;
+
+if (Frontend valida datos?) then (No)
+  :Muestra errores de validación;
+  stop
+else (Sí)
+  :Envía POST a /api/classes;
+  
+  if (Usuario autenticado?) then (No)
+    :Error 401 - No autenticado;
+    stop
+  else (Sí)
+    :Verifica conflicto de horario;
+    
+    if (Hay conflicto?) then (Sí)
+      :Muestra "Conflicto de horario";
+      stop
+    else (No)
+      :Verifica disponibilidad del instructor;
+      
+      if (Dentro del horario disponible?) then (No)
+        :Muestra "Fuera de horario disponible";
+        stop
+      else (Sí)
+        :Verifica límite de horas requeridas;
+        
+        if (Excede horas requeridas?) then (Sí)
+          :Muestra "Excede horas requeridas";
+          stop
+        else (No)
+          :Inserta clase en base de datos;
+          :Actualiza progreso del estudiante;
+          
+          if (Es primera clase del estudiante?) then (Sí)
+            :Actualiza estado a "en_curso";
+          endif
+          
+          :Muestra mensaje de éxito;
+          :Actualiza lista de clases;
+          stop
+        endif
+      endif
+    endif
+  endif
+endif
+@enduml
+
+' ============================================
+' 3. CALIFICAR CLASE (CORREGIDO)
+' ============================================
+@startuml Actividad - Calificar Clase
+start
+:Instructor ingresa nota y observaciones;
+
+if (Nota válida (0-100)?) then (No)
+  :Muestra error de validación;
+  stop
+else (Sí)
+  :Envía PUT a /api/classes/[id];
+  :Actualiza clase con nota, observaciones y estado = "cursado";
+  :Actualiza progreso del estudiante;
+  :Calcula horas realizadas y promedios;
+  :Actualiza student_progress;
+  
+  :Verifica condiciones de graduación;
+  
+  if (100% horas prácticas completadas?) then (No)
+    :Muestra mensaje de éxito;
+    :Actualiza vista de progreso;
+    stop
+  else (Sí)
+    if (100% horas teóricas completadas?) then (No)
+      :Muestra mensaje de éxito;
+      :Actualiza vista de progreso;
+      stop
+    else (Sí)
+      if (Examen calificado?) then (No)
+        :Muestra mensaje de éxito;
+        :Actualiza vista de progreso;
+        stop
+      else (Sí)
+        if (Examen aprobado?) then (No)
+          :Muestra mensaje de éxito;
+          :Actualiza vista de progreso;
+          stop
+        else (Sí)
+          :Actualiza estado del estudiante a "graduado";
+          :Muestra mensaje de éxito;
+          :Actualiza vista de progreso;
+          stop
+        endif
+      endif
+    endif
+  endif
+endif
+@enduml
+
+' ============================================
+' 4. CALIFICAR EXAMEN FINAL (NUEVO)
+' ============================================
+@startuml Actividad - Calificar Examen Final
+start
+:Usuario accede a módulo de examen;
+:Obtiene progreso del estudiante;
+
+:Verifica requisitos para examen;
+
+if (100% horas prácticas completadas?) then (No)
+  :Muestra "Faltan horas prácticas";
+  :Deshabilita formulario de examen;
+  stop
+else (Sí)
+  if (100% horas teóricas completadas?) then (No)
+    :Muestra "Faltan horas teóricas";
+    :Deshabilita formulario de examen;
+    stop
+  else (Sí)
+    if (Promedio prácticas >= 51?) then (No)
+      :Muestra "Promedio práctico insuficiente";
+      :Deshabilita formulario de examen;
+      stop
+    else (Sí)
+      if (Promedio teóricas >= 51?) then (No)
+        :Muestra "Promedio teórico insuficiente";
+        :Deshabilita formulario de examen;
+        stop
+      else (Sí)
+        :Habilita formulario de examen;
+        :Usuario ingresa nota final;
+        :Usuario marca aprobado/reprobado;
+        
+        if (Nota válida (0-100)?) then (No)
+          :Muestra error de validación;
+          stop
+        else (Sí)
+          :Envía PUT a /api/progress/[id]/exam;
+          :Actualiza nota_final y aprobado en student_progress;
+          
+          if (Examen aprobado?) then (No)
+            :Incrementa contador de reintentos;
+            :Muestra "Examen reprobado";
+            :Actualiza vista de progreso;
+            stop
+          else (Sí)
+            :Actualiza estado del estudiante a "graduado";
+            :Muestra "Estudiante graduado exitosamente";
+            :Actualiza vista de progreso;
+            stop
+          endif
+        endif
+      endif
+    endif
+  endif
+endif
+@enduml
+
+' ============================================
+' 5. AGREGAR HORAS DE PENALIZACIÓN (NUEVO)
+' ============================================
+@startuml Actividad - Agregar Horas de Penalización
+start
+:Instructor accede a módulo de horas adicionales;
+:Obtiene progreso y promedios del estudiante;
+
+:Verifica si examen ya fue calificado;
+
+if (Examen ya calificado?) then (Sí)
+  :Muestra "No se pueden editar horas después del examen";
+  :Deshabilita formulario;
+  stop
+else (No)
+  :Verifica promedios del estudiante;
+  
+  if (Promedio prácticas < 51?) then (Sí)
+    :Muestra campo para horas prácticas adicionales;
+  endif
+  
+  if (Promedio teóricas < 51?) then (Sí)
+    :Muestra campo para horas teóricas adicionales;
+  endif
+  
+  :Instructor ingresa horas adicionales;
+  :Convierte formato "Xh Ymin" a minutos;
+  
+  if (Valores válidos?) then (No)
+    :Muestra error de validación;
+    stop
+  else (Sí)
+    :Envía PUT a /api/progress/[id]/additional-hours;
+    :Actualiza horas_penalizacion en student_progress;
+    :Recalcula horas requeridas (base + penalización);
+    :Recalcula porcentaje de avance;
+    :Muestra mensaje de éxito;
+    :Actualiza vista de progreso;
+    stop
+  endif
+endif
+@enduml
+
+' ============================================
+' 6. CREAR ESTUDIANTE (NUEVO)
+' ============================================
+@startuml Actividad - Crear Estudiante
+start
+:Admin completa formulario de estudiante;
+
+if (Frontend valida datos?) then (No)
+  :Muestra errores de validación;
+  stop
+else (Sí)
+  :Envía POST a /api/students;
+  
+  if (Usuario autenticado como admin?) then (No)
+    :Error 403 - No autorizado;
+    stop
+  else (Sí)
+    :Verifica si CI ya existe;
+    
+    if (CI duplicado?) then (Sí)
+      :Muestra "CI ya registrado";
+      stop
+    else (No)
+      :Verifica si email ya existe;
+      
+      if (Email duplicado?) then (Sí)
+        :Muestra "Email ya registrado";
+        stop
+      else (No)
+        :Inserta estudiante en base de datos;
+        :Crea registro inicial de student_progress;
+        :Muestra mensaje de éxito;
+        :Redirige a lista de estudiantes;
+        stop
+      endif
+    endif
+  endif
+endif
+@enduml
+
+' ============================================
+' 7. CREAR INSTRUCTOR (NUEVO)
+' ============================================
+@startuml Actividad - Crear Instructor
+start
+:Admin completa formulario de instructor;
+:Incluye password para acceso al sistema;
+
+if (Frontend valida datos?) then (No)
+  :Muestra errores de validación;
+  stop
+else (Sí)
+  :Envía POST a /api/instructors;
+  
+  if (Usuario autenticado como admin?) then (No)
+    :Error 403 - No autorizado;
+    stop
+  else (Sí)
+    :Verifica si email ya existe;
+    
+    if (Email duplicado?) then (Sí)
+      :Muestra "Email ya registrado";
+      stop
+    else (No)
+      :Crea usuario en Supabase Auth;
+      
+      if (Error al crear usuario Auth?) then (Sí)
+        :Muestra error de creación de usuario;
+        stop
+      else (No)
+        :Obtiene auth_user_id del usuario creado;
+        :Inserta instructor en base de datos;
+        :Vincula instructor con auth_user_id;
+        :Muestra mensaje de éxito;
+        :Redirige a lista de instructores;
+        stop
+      endif
+    endif
+  endif
+endif
+@enduml
+
+' ============================================
+' 8. DESACTIVAR INSTRUCTOR (NUEVO - Importante)
+' ============================================
+@startuml Actividad - Desactivar Instructor
+start
+:Admin selecciona cambiar estado a "inactivo";
+
+if (Confirma acción?) then (No)
+  :Cancela operación;
+  stop
+else (Sí)
+  :Envía PUT a /api/instructors/[id];
+  
+  :Verifica estudiantes no graduados del instructor;
+  
+  if (Tiene estudiantes no graduados?) then (Sí)
+    :Muestra "No se puede desactivar: tiene estudiantes activos";
+    stop
+  else (No)
+    :Actualiza estado del instructor a "inactivo";
+    :Muestra mensaje de éxito;
+    :Actualiza lista de instructores;
+    stop
+  endif
+endif
+@enduml
+

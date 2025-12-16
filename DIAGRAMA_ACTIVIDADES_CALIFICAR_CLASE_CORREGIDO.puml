@@ -1,0 +1,55 @@
+@startuml Actividad - Proceso de Calificar Clase (Completo)
+start
+:Instructor ingresa nota y observaciones;
+
+if (Frontend valida nota (0-100)) then (No)
+  :Muestra error;
+  stop
+else (Sí)
+  :Envía PUT a /api/classes/[id];
+  :Actualiza clase: nota, observaciones, estado = "cursado";
+  
+  :Llama a updateStudentProgress(estudiante_id);
+  
+  :Obtiene todas las clases del estudiante;
+  note right: Excluyendo clases con estado "suspendida"
+  
+  :Calcula horas realizadas por tipo;
+  note right: Suma duracion_minutos de:\n- Clases prácticas\n- Clases teóricas\n(por separado)
+  
+  :Obtiene requisitos del estudiante;
+  note right: horas_practicas_requeridas (base)\n+ horas_penalizacion_practicas\nhoras_teoricas_requeridas (base)\n+ horas_penalizacion_teoricas
+  
+  :Calcula porcentaje de avance;
+  note right: (horas realizadas / horas requeridas) * 100
+  
+  :Actualiza student_progress;
+  note right: Guarda:\n- clases_practicas_realizadas\n- clases_teoricas_realizadas\n- porcentaje_avance
+  
+  :Verifica si puede graduar;
+  
+  if (Completó 100% horas prácticas?) then (No)
+    stop
+  else (Sí)
+    if (Completó 100% horas teóricas?) then (No)
+      stop
+    else (Sí)
+      if (Examen calificado?) then (No)
+        stop
+      else (Sí)
+        if (Examen aprobado?) then (No)
+          stop
+        else (Sí)
+          :Actualiza estado del estudiante a "graduado";
+          note right: Solo si estado actual es\n"activo" o "en_curso"
+        endif
+      endif
+    endif
+  endif
+  
+  :Muestra mensaje de éxito;
+  :Actualiza vista de progreso;
+  stop
+end
+@enduml
+

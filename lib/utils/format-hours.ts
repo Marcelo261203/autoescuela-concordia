@@ -30,3 +30,6 @@ export function formatMinutesToHours(minutos: number): string {
   return `${horas}h ${minutosRestantes}min`
 }
 
+
+
+

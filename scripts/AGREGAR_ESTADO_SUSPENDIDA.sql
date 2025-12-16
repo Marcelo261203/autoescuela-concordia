@@ -32,3 +32,6 @@ CHECK (estado IN ('agendado', 'por_calificar', 'cursado', 'suspendida'));
 
 
 
+
+
+

@@ -1,0 +1,130 @@
+@startuml Diagrama de Clases - Sistema de Autoescuela (Simplificado)
+
+!define primary_key(x) <b><color:#b8861b>PK</color></b> <color:#b8861b>x</color>
+!define foreign_key(x) <b><color:#527ee5>FK</color></b> <color:#527ee5>x</color>
+
+skinparam classAttributeIconSize 0
+
+' Clases Principales del Dominio
+class Student {
+    primary_key(id: string)
+    ci: string (único)
+    nombre: string
+    apellido: string
+    email: string (único)
+    telefono: string
+    direccion: string
+    fecha_nacimiento: string
+    estado: enum (activo, en_curso, graduado, inactivo)
+    fecha_inscripcion: string
+    categoria_licencia_deseada: enum (M, P, A, B, C, null)
+    --
+}
+
+class Instructor {
+    primary_key(id: string)
+    nombre: string
+    apellido: string
+    email: string (único)
+    telefono: string
+    especialidad: string
+    hora_inicio: string (HH:MM, nullable)
+    hora_fin: string (HH:MM, nullable)
+    tipos_licencias: string (nullable)
+    foreign_key(auth_user_id: string) (nullable)
+    estado: enum (activo, inactivo)
+    --
+}
+
+class Class {
+    primary_key(id: string)
+    foreign_key(estudiante_id: string)
+    foreign_key(instructor_id: string)
+    tipo: enum (practica, teorica)
+    categoria_licencia: enum (M, P, A, B, C, null)
+    fecha: string
+    hora: string
+    duracion_minutos: number
+    observaciones: string
+    estado: enum (agendado, por_calificar, cursado, suspendida)
+    nota: number (0-100, nullable)
+    --
+}
+
+class StudentProgress {
+    primary_key(id: string)
+    foreign_key(estudiante_id: string) (único)
+    clases_practicas_realizadas: number (minutos)
+    clases_teoricas_realizadas: number (minutos)
+    horas_practicas_requeridas: number (minutos, nullable)
+    horas_teoricas_requeridas: number (minutos, nullable)
+    horas_penalizacion_practicas: number (minutos)
+    horas_penalizacion_teoricas: number (minutos)
+    nota_final: number (0-100, nullable)
+    aprobado: boolean (nullable)
+    reintentos: number
+    porcentaje_avance: number
+    --
+}
+
+class AuthUser {
+    primary_key(id: string) (UUID)
+    email: string (único)
+    encrypted_password: string
+    --
+}
+
+' Servicios (Representación simplificada)
+class StudentService {
+    + getStudents(...)
+    + getStudentById(...)
+    + createStudent(...)
+    + updateStudent(...)
+    + deleteStudent(...)
+    --
+}
+
+class InstructorService {
+    + getInstructors(...)
+    + getInstructorById(...)
+    + createInstructor(...)
+    + updateInstructor(...)
+    + getInstructorByAuthUserId(...)
+    --
+}
+
+class ClassService {
+    + getClasses(...)
+    + createClass(...)
+    + updateClass(...)
+    + deleteClass(...)
+    + checkClassConflict(...)
+    + checkHoursExceeded(...)
+    + checkInstructorAvailability(...)
+    --
+}
+
+class ProgressService {
+    + getStudentProgress(...)
+    + updateStudentProgress(...)
+    --
+}
+
+' Relaciones Principales del Dominio
+AuthUser "0..1" <-- "1" Instructor : vinculado
+Student "1" -- "1" StudentProgress : tiene
+Student "1" o-- "*" Class : tiene
+Instructor "1" o-- "*" Class : asigna
+
+' Relaciones de Servicios con Entidades
+StudentService ..> Student : gestiona
+InstructorService ..> Instructor : gestiona
+InstructorService ..> AuthUser : gestiona
+ClassService ..> Class : gestiona
+ClassService ..> Student : consulta
+ClassService ..> Instructor : consulta
+ProgressService ..> StudentProgress : gestiona
+ProgressService ..> Class : consulta
+
+@enduml
+

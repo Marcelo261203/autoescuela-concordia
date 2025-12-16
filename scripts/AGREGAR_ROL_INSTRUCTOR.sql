@@ -78,3 +78,6 @@ COMMENT ON COLUMN instructors.auth_user_id IS 'Referencia al usuario en auth.use
 
 
 
+
+
+

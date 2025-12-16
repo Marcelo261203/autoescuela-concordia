@@ -1,0 +1,102 @@
+@startuml Diagrama de Despliegue - Sistema de Autoescuela
+
+skinparam node {
+  backgroundColor #E8E8E8
+  borderColor #333333
+  shadowing false
+}
+skinparam component {
+  backgroundColor #F3F3F3
+  borderColor #555555
+}
+skinparam database {
+  backgroundColor #D3E0F1
+  borderColor #2A4C6A
+}
+
+' =====================
+' NODO: CLIENTE
+' =====================
+node "Cliente (Navegador)" as Cliente <<Navegador Web>> {
+  [Frontend Next.js + React] as Frontend
+  note right of Frontend
+    - Páginas (app/dashboard/*)
+    - Componentes React
+    - Hooks personalizados
+  end note
+}
+
+' =====================
+' NODO: SERVIDOR
+' =====================
+node "Servidor Next.js" as Servidor <<Node.js>> {
+  [API Routes] as API
+  [Middleware] as MW
+  
+  package "Servicios de Negocio" as Servicios {
+    [StudentService] as SS
+    [InstructorService] as IS
+    [ClassService] as CS
+    [ProgressService] as PS
+    [AuthService] as AS
+    [ReportService] as RS
+  }
+  
+  package "Clientes Supabase" as Clientes {
+    [SupabaseClient\n(con RLS)] as SC
+    [SupabaseAdminClient\n(sin RLS)] as SAC
+  }
+  
+  ' Conexiones internas del servidor
+  API --> Servicios : llama
+  MW --> AS : verifica rol
+  Servicios --> Clientes : usa
+}
+
+' =====================
+' NODO: BASE DE DATOS
+' =====================
+database "Supabase Cloud" as Supabase <<PostgreSQL>> {
+  [REST API + RLS] as RestAPI
+  
+  package "PostgreSQL" as PG {
+    [students] as T1
+    [instructors] as T2
+    [classes] as T3
+    [student_progress] as T4
+  }
+  
+  package "Supabase Auth" as Auth {
+    [auth.users] as AU
+    [Tokens JWT] as JWT
+  }
+  
+  RestAPI --> PG : consulta
+  RestAPI --> Auth : autentica
+}
+
+' =====================
+' CONEXIONES PRINCIPALES
+' =====================
+Cliente -down-> Servidor : **HTTPS**\nPuerto 443\nJSON / HTML
+Servidor -down-> Supabase : **HTTPS**\nPuerto 443\nREST API\nAPI Keys
+
+' =====================
+' NOTAS
+' =====================
+note bottom of Cliente
+  **Artefactos:**
+  - HTML estático
+  - JavaScript bundles
+  - CSS compilado
+end note
+
+note bottom of Supabase
+  **Variables de Entorno:**
+  - NEXT_PUBLIC_SUPABASE_URL
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - SUPABASE_SERVICE_ROLE_KEY
+end note
+
+@enduml
+

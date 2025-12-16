@@ -1,0 +1,261 @@
+@startuml Diagrama de Clases - Sistema de Autoescuela (Completo)
+
+!define primary_key(x) <b><color:#b8861b>PK</color></b> <color:#b8861b>x</color>
+!define foreign_key(x) <b><color:#527ee5>FK</color></b> <color:#527ee5>x</color>
+
+skinparam classAttributeIconSize 0
+
+package "Dominio del Negocio" {
+    class Student {
+        primary_key(id: string)
+        ci: string (único)
+        nombre: string
+        apellido: string
+        email: string (único)
+        telefono: string
+        direccion: string
+        fecha_nacimiento: string
+        estado: enum (activo, en_curso, graduado, inactivo)
+        fecha_inscripcion: string
+        categoria_licencia_deseada: enum (M, P, A, B, C, null)
+        created_at: string
+        updated_at: string
+        --
+    }
+    
+    class Instructor {
+        primary_key(id: string)
+        nombre: string
+        apellido: string
+        email: string (único)
+        telefono: string
+        especialidad: string
+        hora_inicio: string (HH:MM, nullable)
+        hora_fin: string (HH:MM, nullable)
+        tipos_licencias: string (nullable, formato: "P,A,B,C")
+        foreign_key(auth_user_id: string) (nullable)
+        estado: enum (activo, inactivo)
+        created_at: string
+        updated_at: string
+        --
+    }
+
+    class Class {
+        primary_key(id: string)
+        foreign_key(estudiante_id: string)
+        foreign_key(instructor_id: string)
+        tipo: enum (practica, teorica)
+        categoria_licencia: enum (M, P, A, B, C, null)
+        fecha: string (YYYY-MM-DD)
+        hora: string (HH:MM)
+        duracion_minutos: number
+        observaciones: string
+        estado: enum (agendado, por_calificar, cursado, suspendida)
+        nota: number (0-100, nullable)
+        created_at: string
+        updated_at: string
+        --
+    }
+
+    class StudentProgress {
+        primary_key(id: string)
+        foreign_key(estudiante_id: string) (único)
+        clases_practicas_realizadas: number (minutos)
+        clases_teoricas_realizadas: number (minutos)
+        clases_practicas_requeridas: number (minutos, legacy)
+        clases_teoricas_requeridas: number (minutos, legacy)
+        horas_practicas_requeridas: number (minutos, nullable)
+        horas_teoricas_requeridas: number (minutos, nullable)
+        duracion_estandar_minutos: number (nullable)
+        horas_penalizacion_practicas: number (minutos, default: 0)
+        horas_penalizacion_teoricas: number (minutos, default: 0)
+        nota_final: number (0-100, nullable)
+        aprobado: boolean (nullable: null=pendiente, true=aprobado, false=reprobado)
+        reintentos: number (default: 0)
+        porcentaje_avance: number (0-100)
+        actualizado_en: string
+        --
+    }
+}
+
+package "Infraestructura" {
+    class AuthUser {
+        primary_key(id: string) (UUID)
+        email: string (único)
+        encrypted_password: string
+        email_confirmed_at: timestamp (nullable)
+        created_at: timestamp
+        updated_at: timestamp
+        --
+    }
+    
+    class SupabaseClient {
+        + from(table: string): QueryBuilder
+        + auth.getUser(): Promise<UserResponse>
+        + auth.signInWithPassword(credentials: Credentials): Promise<AuthResponse>
+        + auth.signOut(): Promise<void>
+        --
+    }
+
+    class SupabaseAdminClient {
+        + from(table: string): QueryBuilder (bypass RLS)
+        + auth.admin.createUser(userData: CreateUserData): Promise<AdminUserResponse>
+        + auth.admin.updateUserById(id: string, updates: UpdateUserData): Promise<AdminUserResponse>
+        --
+    }
+}
+
+package "Lógica de Negocio" {
+    class StudentService {
+        + getStudents(page, limit, search?, estado?): Promise<PaginatedResult<Student>>
+        + getStudentById(id: string): Promise<Student>
+        + checkStudentExists(ci, email, excludeId?): Promise<boolean>
+        + createStudent(student: StudentInput): Promise<Student>
+        + updateStudent(id: string, updates: Partial<Student>): Promise<Student>
+        + deleteStudent(id: string): Promise<void>
+        + checkStudentHasClasses(studentId: string): Promise<boolean>
+        + getStudentsByInstructor(instructorId: string, excludeGraduated?: boolean): Promise<Student[]>
+        --
+    }
+
+    class InstructorService {
+        + getInstructors(page, limit, estado?): Promise<PaginatedResult<Instructor>>
+        + getInstructorById(id: string): Promise<Instructor>
+        + getInstructorByAuthUserId(authUserId: string): Promise<Instructor | null>
+        + createInstructor(instructor: InstructorInput): Promise<Instructor>
+        + updateInstructor(id: string, updates: Partial<Instructor>): Promise<Instructor>
+        + deleteInstructor(id: string): Promise<void>
+        + checkInstructorHasClasses(instructorId: string): Promise<boolean>
+        + getInstructorClassesCount(instructorId: string): Promise<number>
+        + createInstructorAuthUser(email: string, password: string): Promise<string>
+        + instructorHasAuthUser(instructorId: string): Promise<boolean>
+        + updateInstructorPassword(authUserId: string, newPassword: string): Promise<void>
+        --
+    }
+
+    class ClassService {
+        + getClasses(page, limit, filters?): Promise<PaginatedResult<ClassWithDetails>>
+        + getClassesByStudent(studentId: string): Promise<ClassWithDetails[]>
+        + createClass(clase: ClassInput): Promise<ClassWithDetails>
+        + updateClass(id: string, updates: Partial<Class>): Promise<Class>
+        + deleteClass(id: string): Promise<void>
+        + checkClassConflict(fecha, hora, duracion_minutos, estudiante_id?, instructor_id?, excludeId?): Promise<ConflictResult>
+        + checkHoursExceeded(estudiante_id: string, tipo: string, duracion_minutos: number, excludeClassId?): Promise<HoursExceededResult>
+        + checkInstructorAvailability(instructor_id: string, hora: string, duracion_minutos: number): Promise<AvailabilityResult>
+        - updateClassStatuses(): Promise<void>
+        --
+    }
+
+    class ProgressService {
+        + getStudentProgress(studentId: string): Promise<StudentProgress | null>
+        + updateStudentProgress(studentId: string): Promise<StudentProgress>
+        + getStudentProgressReport(studentId: string): Promise<ProgressReport>
+        --
+    }
+    
+    class AuthService {
+        + getUserRole(): Promise<UserRole>
+        + getCurrentInstructorId(): Promise<string | null>
+        --
+    }
+
+    class ReportService {
+        + getDashboardSummary(): Promise<DashboardSummary>
+        + getInstructorDashboardSummary(instructorId: string): Promise<InstructorDashboardSummary>
+        + getActiveStudentsReport(): Promise<Student[]>
+        + getStudentsByStateReport(): Promise<Record<string, number>>
+        + getClassesReport(filters?): Promise<ClassWithDetails[]>
+        --
+    }
+}
+
+package "Interfaz de Usuario" {
+    class StudentList <<Componente React>> {
+        students: Student[]
+        isLoading: boolean
+        searchTerm: string
+        selectedEstado: string
+        currentPage: number
+        + handleSearch(term: string): void
+        + handleFilter(estado: string): void
+        + handlePageChange(page: number): void
+        + handleDelete(id: string): void
+        --
+    }
+    
+    class StudentForm <<Componente React>> {
+        formData: StudentInput
+        errors: ValidationErrors
+        isSubmitting: boolean
+        + handleSubmit(data: StudentInput): Promise<void>
+        + handleChange(field: string, value: any): void
+        + validate(): boolean
+        --
+    }
+    
+    class ClassForm <<Componente React>> {
+        formData: ClassInput
+        availableStudents: Student[]
+        availableInstructors: Instructor[]
+        conflictError: string | null
+        + handleSubmit(data: ClassInput): Promise<void>
+        + checkConflict(): Promise<void>
+        + validateAvailability(): Promise<void>
+        --
+    }
+    
+    class StudentProgressCard <<Componente React>> {
+        studentId: string
+        progress: StudentProgress | null
+        isLoading: boolean
+        + loadProgress(): Promise<void>
+        + formatHours(minutes: number): string
+        --
+    }
+}
+
+' Relaciones de Dominio
+AuthUser "0..1" <-- "1" Instructor : fk auth_user_id
+Student "1" -- "1" StudentProgress : tiene >
+Student "1" o-- "*" Class : tiene
+Instructor "1" o-- "*" Class : asigna
+
+' Relaciones de Servicio
+StudentService ..> Student : manipula
+StudentService ..> Class : consulta
+InstructorService ..> Instructor : manipula
+InstructorService ..> AuthUser : crea/actualiza
+ClassService ..> Class : manipula
+ClassService ..> Student : consulta
+ClassService ..> Instructor : consulta
+ClassService ..> StudentProgress : actualiza
+ProgressService ..> StudentProgress : manipula
+ProgressService ..> Class : consulta
+ProgressService ..> Student : actualiza
+AuthService ..> InstructorService : usa
+ReportService ..> Student : consulta
+ReportService ..> Class : consulta
+ReportService ..> StudentProgress : consulta
+
+' Relaciones de Dependencia (Uso)
+StudentService ..> SupabaseClient : usa >
+InstructorService ..> SupabaseClient : usa >
+InstructorService ..> SupabaseAdminClient : usa >
+ClassService ..> SupabaseClient : usa >
+ClassService ..> SupabaseAdminClient : usa >
+ProgressService ..> SupabaseClient : usa >
+ProgressService ..> SupabaseAdminClient : usa >
+ReportService ..> SupabaseClient : usa >
+ReportService ..> SupabaseAdminClient : usa >
+AuthService ..> SupabaseClient : usa >
+
+' Relaciones de Componentes (a través de API Routes)
+StudentList ..> StudentService : usa >
+StudentForm ..> StudentService : usa >
+ClassForm ..> ClassService : usa >
+ClassForm ..> StudentService : consulta
+ClassForm ..> InstructorService : consulta
+StudentProgressCard ..> ProgressService : usa >
+
+@enduml
+
